@@ -1,0 +1,47 @@
+[build-system]
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dirmapper-core"
+version = "0.0.1"
+description = "Core library for directory mapping and summarization"
+authors = [
+    {name = "Nash Dean", email = "nashdean.github@gmail.com"}
+]
+readme = "README.md"
+license = { file = "LICENSE" }
+keywords = ["directory", "mapping", "summarization"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Topic :: Software Development :: Libraries :: Python Modules"
+]
+requires-python = ">=3.10"
+dependencies = [
+    "requests",
+    "openai",
+    "pytest",
+    "mypy",
+    "pydantic",
+    "pyyaml",
+    "typing-extensions"
+]
+
+[tool.setuptools]
+packages = ["dirmapper_core"]
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "-ra -q"
+testpaths = [
+    "tests",
+]
+
+[tool.mypy]
+python_version = "3.10"
+files = ["dirmapper_core", "tests"]
+ignore_missing_imports = true

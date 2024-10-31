@@ -1,0 +1,3 @@
+requests
+openai
+pytest  # For testing
