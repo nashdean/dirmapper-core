@@ -61,7 +61,7 @@ You can create a directory structure from a template using the `StructureWriter`
 from dirmapper_core.writer.structure_writer import StructureWriter
 
 # Define the base path where the structure will be created
-base_path = 'path/to/your/project'
+base_path = 'Path/To/Your/Project'
 
 # Define the structure template
 structure_template = {
@@ -92,6 +92,9 @@ writer = StructureWriter(base_path)
 
 # Create the directory structure
 writer.create_structure(structure_template)
+
+# Write the structure to OS file system
+writer.write_structure()
 ```
 
 ### Writing Directory Structure to Template File

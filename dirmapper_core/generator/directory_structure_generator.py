@@ -22,6 +22,7 @@ class DirectoryStructureGenerator:
         style (BaseStyle): The style to use for the directory structure output.
         formatter (Formatter): The formatter to use for the directory structure output.
         sorting_strategy (SortingStrategy): The strategy to use for sorting.
+        max_depth (int): The maximum depth to traverse in the directory structure.
     """
     def __init__(self, root_dir: str, output: str, ignorer: PathIgnorer, sorting_strategy: SortingStrategy, case_sensitive: bool = True, style: BaseStyle = None, formatter: Formatter = None, max_depth: int = 5):
         self.root_dir = os.path.expanduser(root_dir)
