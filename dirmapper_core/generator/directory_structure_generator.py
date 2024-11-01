@@ -24,7 +24,7 @@ class DirectoryStructureGenerator:
         sorting_strategy (SortingStrategy): The strategy to use for sorting.
     """
     def __init__(self, root_dir: str, output: str, ignorer: PathIgnorer, sorting_strategy: SortingStrategy, case_sensitive: bool = True, style: BaseStyle = None, formatter: Formatter = None, max_depth: int = 5):
-        self.root_dir = root_dir
+        self.root_dir = os.path.expanduser(root_dir)
         self.output = output
         self.ignorer = ignorer
         self.sorting_strategy = sorting_strategy
@@ -83,14 +83,18 @@ class DirectoryStructureGenerator:
         sorted_contents = self.sorting_strategy.sort(dir_contents)
         
         if level > self.max_depth:
-            structure.append((os.path.join(current_dir, ". . ."), level, ". . ."))
+            # Use relative path
+            relative_path = os.path.relpath(current_dir, self.root_dir)
+            structure.append((os.path.join(relative_path, ". . ."), level, ". . ."))
             return structure
         
         for item in sorted_contents:
             item_path = os.path.join(current_dir, item)
             if self.ignorer.should_ignore(item_path):
                 continue
-            structure.append((item_path, level, item))
+            # Compute relative path
+            relative_item_path = os.path.relpath(item_path, self.root_dir)
+            structure.append((relative_item_path, level, item))
 
             if os.path.isdir(item_path):
                 structure.extend(self._build_sorted_structure(item_path, level + 1))
@@ -119,4 +123,8 @@ class DirectoryStructureGenerator:
         Returns:
             bool: True if the path is a valid directory, False otherwise.
         """
-        return os.path.isdir(str(path)) if path else os.path.isdir(self.root_dir)
+        if path:
+            expanded_path = os.path.expanduser(str(path))
+        else:
+            expanded_path = os.path.expanduser(str(self.root_dir))
+        return os.path.isdir(expanded_path)

@@ -25,8 +25,10 @@ You can generate a directory structure using the `DirectoryStructureGenerator` c
 ```python
 from dirmapper_core.generator.directory_structure_generator import DirectoryStructureGenerator
 from dirmapper_core.ignore.path_ignorer import PathIgnorer
+from dirmapper_core.ignore.ignore_list_reader import SimpleIgnorePattern
 from dirmapper_core.styles.tree_style import TreeStyle
 from dirmapper_core.formatter.formatter import PlainTextFormatter
+from dirmapper.utils.sorting_strategy import AscendingSortStrategy
 
 # Define ignore patterns
 ignore_patterns = [
@@ -40,16 +42,17 @@ path_ignorer = PathIgnorer(ignore_patterns)
 
 # Initialize DirectoryStructureGenerator
 generator = DirectoryStructureGenerator(
-    root_dir='path/to/your/project',
+    root_dir='./path/to/your/directory',
     output='output.txt',
     ignorer=path_ignorer,
-    sort_order='asc',
+    sorting_strategy=AscendingSortStrategy(case_sensitive=False),
     style=TreeStyle(),
     formatter=PlainTextFormatter()
 )
 
 # Generate and save the directory structure
-generator.generate()
+structure = generator.generate()
+print(structure)
 ```
 
 ### Creating Directory Structure from Template
@@ -153,13 +156,13 @@ path/to/your/project
 ├── .git/
 ├── .github/
 │   └── workflows/
-│       └── [publish.yml](http://_vscodecontentref_/1)
+│       └── publish.yml
 ├── LICENSE
-├── [README.md](http://_vscodecontentref_/2)
+├── README.md
 ├── dirmapper_core/
-│   ├── [__init__.py](http://_vscodecontentref_/3)
+│   ├── __init__.py
 │   ├── ai/
-│   │   └── [summarizer.py](http://_vscodecontentref_/4)
+│   │   └── summarizer.py
 │   ├── data/
 │   ├── formatter/
 │   ├── generator/
@@ -168,13 +171,13 @@ path/to/your/project
 │   ├── utils/
 │   └── writer/
 └── tests/
-    ├── [__init__.py](http://_vscodecontentref_/5)
-    ├── [conftest.py](http://_vscodecontentref_/6)
-    ├── [test_cli_utils.py](http://_vscodecontentref_/7)
-    ├── [test_directory_structure_generator.py](http://_vscodecontentref_/8)
-    ├── [test_ignore_list_reader.py](http://_vscodecontentref_/9)
-    ├── [test_main.py](http://_vscodecontentref_/10)
-    └── [test_path_ignorer.py](http://_vscodecontentref_/11)
+    ├── __init__.py
+    ├── conftest.py
+    ├── test_cli_utils.py
+    ├── test_directory_structure_generator.py
+    ├── test_ignore_list_reader.py
+    ├── test_main.py
+    └── test_path_ignorer.py
 """
 
 summary = summarizer.summarize(directory_structure)

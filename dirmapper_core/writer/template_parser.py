@@ -8,9 +8,42 @@ class TemplateParser:
     Class to parse template files in YAML or JSON format.
     """
     def __init__(self, template_file: str=None):
+        """
+        Initialize the TemplateParser object.
+
+        Args:
+            template_file (str): The path to the template file to parse.
+        """
         self.template_file = template_file
 
     def parse_template(self) -> dict:
+        """
+        Parse the template file and return it as a dictionary.
+
+        Returns:
+            dict: The parsed template as a dictionary.
+
+        Example:
+            template_file = 'template.yaml'
+            parsed_template = {
+                "meta": {
+                    "version": "1.1",
+                    "tool": "dirmapper",
+                    "author": "user",
+                    "creation_date": "2021-09-01T12:00:00",
+                    "last_modified": "2021-09-01T12:00:00"
+                },
+                "template": {
+                    "dir1": {
+                        "file1.txt": {},
+                        "file2.txt": {},
+                        "subdir1": {
+                            "file3.txt": {}
+                        }
+                    }
+                }
+            }
+        """
         with open(self.template_file, 'r') as f:
             if self.template_file.endswith('.yaml') or self.template_file.endswith('.yml'):
                 template = yaml.safe_load(f)
@@ -34,6 +67,43 @@ class TemplateParser:
         return template
     
     def parse_directory_structure(self, structure_str: str) -> dict:
+        """
+        Parse the directory structure string and return it as a dictionary.
+
+        Args:
+            structure_str (str): The directory structure string to parse.
+
+        Returns:
+            dict: The parsed directory structure as a dictionary in a structured reusable template.
+
+        Example:
+            structure_str = 
+                dir1/
+                ├── file1.txt
+                ├── file2.txt
+                └── subdir1/
+                    └── file3.txt
+
+            parsed_structure =
+            {
+                "meta": {
+                    "version": "1.1",
+                    "tool": "dirmapper",
+                    "author": "user",
+                    "creation_date": "2021-09-01T12:00:00",
+                    "last_modified": "2021-09-01T12:00:00"
+                },
+                "template": {
+                    "dir1": {
+                        "file1.txt": {},
+                        "file2.txt": {},
+                        "subdir1": {
+                            "file3.txt": {}
+                        }
+                    }
+                }
+            }
+        """
         lines = structure_str.strip().split('\n')
         root = {}
         stack = [(root, -1)]  # Stack of (current_node, indent_level)

@@ -6,11 +6,20 @@ class StructureWriter:
     Class to create directory structures from a template.
     """
     def __init__(self, base_path: str):
+        """
+        Initialize the StructureWriter object.
+
+        Args:
+            base_path (str): The base path to create the directory structure.
+        """
         self.base_path = base_path
 
     def create_structure(self, structure: dict):
         """
-        Create the directory structure from the template.
+        Create the directory structure from the template. Writes the directories and files to the base path.
+
+        Args:
+            structure (dict): The directory structure template to create.
         """
         if 'meta' not in structure or 'template' not in structure:
             raise ValueError("Template must contain 'meta' and 'template' sections.")
@@ -39,7 +48,11 @@ class StructureWriter:
 
     def _create_structure_from_template(self, base_path: str, structure: dict):
         """
-        Recursively create the directory structure (makes directories and files) from the template.
+        Recursively create the directory structure (makes directories and files) from the template. Helper method for create_structure.
+
+        Args:
+            base_path (str): The base path to create the directory structure.
+            structure (dict): The directory structure template to create.
         """
         for name, content in structure.items():
             path = os.path.join(base_path, name)

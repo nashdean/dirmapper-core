@@ -7,6 +7,10 @@ from dirmapper_core.utils.logger import logger
 def write_template(template_path, structure):
     """
     Write the generated directory structure to a template file.
+
+    Args:
+        template_path (str): The path to write the template file to.
+        structure (dict): The directory structure to write to the template file.
     """
     if not template_path.endswith('.json') and not template_path.endswith('.yaml') and not template_path.endswith('.yml'):
         template_path += '.json'  # Default to JSON if no valid extension is provided

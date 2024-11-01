@@ -6,6 +6,16 @@ from typing import Type
 from dirmapper_core.ignore.path_ignorer import PathIgnorer
 
 def setup_logger(name: str) -> logging.Logger:
+    """
+    Setup a logger with the specified name. Log level is set to INFO. 
+    Formatter is set to include the log level and message.
+    
+    Args:
+        name (str): The name of the logger.
+        
+    Returns:
+        logging.Logger: The logger object.
+    """
     logger = logging.getLogger(name)
     logger.setLevel(logging.INFO)
 
@@ -22,11 +32,25 @@ def setup_logger(name: str) -> logging.Logger:
 logger = setup_logger(__name__)
 
 def log_exception(file_name:str, exc: Exception, stacktrace: bool = False) -> None:
+    """
+    Log an exception with the file name and optionally the stack trace.
+
+    Args:
+        file_name (str): The name of the file where the exception occurred.
+        exc (Exception): The exception that occurred.
+        stacktrace (bool): Whether to include the stack trace in the log message.
+    """
     logger.error("%s: %s", file_name, exc)
     if stacktrace:
         logger.error("Stack Trace:", exc_info=True)
 
 def log_ignored_paths(ignorer: Type[PathIgnorer]) -> None:
+    """
+    Log the ignored paths from the PathIgnorer object.
+    
+    Args:
+        ignorer (PathIgnorer): The PathIgnorer object to log ignored paths from.
+    """
     root_counts = ignorer.get_root_ignored_counts()
     root_directories = ignorer.get_root_directories()
     for root_dir in root_directories:
@@ -34,7 +58,9 @@ def log_ignored_paths(ignorer: Type[PathIgnorer]) -> None:
 
 def log_periodically(custom_message: str, time_interval: int, include_time: bool = True) -> None:
     """
-    Function to log a custom message at regular intervals with threads.
+    Function to log a custom message at regular intervals with threads. 
+    The function will log the message every time_interval seconds until stop_logging is set. 
+    Threads are used to allow the main program to continue running while logging occurs.
 
     Args:
         custom_message (str): The message to log.

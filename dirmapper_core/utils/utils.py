@@ -10,7 +10,16 @@ from importlib import resources
 
 from dirmapper_core.utils.logger import log_exception, logger
 
-def clean_json_keys(data):
+def clean_json_keys(data: dict | list) -> dict:
+    """
+    Recursively clean the keys of a JSON-like data structure by removing tree drawing characters. Useful for removing the tree drawing characters from keys of a directory structure template.
+
+    Args:
+        data (dict | list): The JSON-like data structure to clean.
+    
+    Returns:
+        dict: The cleaned data structure.
+    """
     if isinstance(data, dict):
         new_dict = {}
         for key, value in data.items():
@@ -36,6 +45,24 @@ def read_ignore_patterns(ignore_file: str, include_gitignore: bool, additional_i
 
     Returns:
         list: A list of IgnorePattern objects.
+    
+    Raises:
+        FileNotFoundError: If the ignore file is not found.
+    
+    Example:
+        Parameters:
+            ignore_file = '.mapping-ignore'
+            include_gitignore = True
+            additional_ignores = ['regex:.*\.log']
+        Result:
+            ignore_patterns = [
+                SimpleIgnorePattern('node_modules'),
+                SimpleIgnorePattern('build'),
+                SimpleIgnorePattern('.git'),
+                SimpleIgnorePattern('.mapping'),
+                SimpleIgnorePattern('.mapping-ignore'),
+                RegexIgnorePattern('.*\.log')
+            ]
     """
     ignore_list_reader = IgnoreListReader()
     ignore_patterns = []
@@ -102,6 +129,24 @@ def parse_sort_argument(sort_arg: str) -> Tuple[str, bool]:
     return sort_order, case_sensitive
 
 def get_package_version(package_name: str) -> str:
+    """
+    Get the version of the specified package.
+
+    Args:
+        package_name (str): The name of the package to get the version of.
+    
+    Returns:
+        str: The version of the package.
+    
+    Raises:
+        PackageNotFoundError: If the package is not found.
+    
+    Example:
+        Parameters:
+            package_name = 'dirmapper-core'
+        Result:
+            version = '0.0.3'
+    """
     
     # Check if version is passed via environment variable (for Homebrew)
     ver = os.getenv("DIRMAPPER_VERSION")
@@ -112,14 +157,3 @@ def get_package_version(package_name: str) -> str:
         return version(package_name)
     except PackageNotFoundError:
         return "Unknown version"
-
-def initialize_openai_client(api_key):
-    try:
-        client = OpenAI(api_key=api_key)
-        # Make a test request to verify the API key
-        client.chat.completions.create(model="gpt-4o-mini", messages=[{"role": "system", "content": "Test"}])
-    except AuthenticationError as e:
-        raise ValueError("Invalid API key provided. Please check your API key and try again.")
-    except Exception as e:
-        log_exception(os.path.basename(__file__), e)
-        raise ValueError("An unexpected error occurred. Please try again later.")

@@ -75,6 +75,22 @@ class IgnoreListReader:
         
         Returns:
             List[IgnorePattern]: A list of ignore pattern objects.
+        
+        Raises:
+            FileNotFoundError: If the ignore file is not found.
+
+        Example:
+            Parameters:
+                ignore_file = '.mapping-ignore'
+            Result:
+                ignore_patterns = [
+                    SimpleIgnorePattern('node_modules'),
+                    SimpleIgnorePattern('build'),
+                    SimpleIgnorePattern('.git'),
+                    SimpleIgnorePattern('.mapping'),
+                    SimpleIgnorePattern('.mapping-ignore'),
+                    RegexIgnorePattern('.*\.log')
+                ]
         """
         with open(ignore_file, 'r') as f:
             lines = f.readlines()

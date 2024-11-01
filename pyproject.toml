@@ -24,15 +24,13 @@ requires-python = ">=3.10"
 dependencies = [
     "requests",
     "openai",
-    "pytest",
-    "mypy",
     "pydantic",
     "pyyaml",
     "typing-extensions"
 ]
 
-[tool.setuptools]
-packages = ["dirmapper_core"]
+[tool.setuptools.packages.find]
+include = ["dirmapper_core", "dirmapper_core.*"]
 
 [tool.pytest.ini_options]
 minversion = "6.0"

@@ -11,12 +11,50 @@ This differs from the Style classes, which are responsible for generating the st
 """
 
 class Formatter(ABC):
+    """
+    Abstract class for formatters. Formatters are responsible for converting data into a specific format (e.g., plain text, HTML, JSON, etc.).
+    """
     @abstractmethod
     def format(self, data, instructions=None) -> str:
+        """
+        Abstract method to format the data into a specific format.
+        """
         pass
 
 class PlainTextFormatter(Formatter):
+    """
+    A concrete implementation of the Formatter class that formats data as plain text.
+    """
     def format(self, data: str, instructions:dict={'style':TreeStyle()}) -> str:
+        """
+        Format the data as plain text.
+
+        Args:
+            data (str): The data to format as plain text.
+            instructions (dict): The instructions for formatting the data. The instructions should include a 'style' key that specifies the style to use for formatting the data. Defaults to TreeStyle.
+        
+        Returns:
+            str: The data formatted as plain text.
+        
+        Example:
+            Parameters:
+                data = [
+                    ('/path/to/dir', 0, 'dir'),
+                    ('/path/to/dir/file1.txt', 1, 'file1.txt'),
+                    ('/path/to/dir/file2.txt', 1, 'file2.txt'),
+                    ('/path/to/dir/subdir', 1, 'subdir'),
+                    ('/path/to/dir/subdir/file3.txt', 2, 'file3.txt')
+                ]
+                instructions = {
+                    'style': TreeStyle()
+                }
+            Result:
+                /path/to/dir
+                ├── file1.txt
+                ├── file2.txt
+                └── subdir
+                    └── file3.txt
+        """
         style = instructions.get('style')
         if style:
             return style.write_structure(data)
@@ -24,7 +62,45 @@ class PlainTextFormatter(Formatter):
 
 #TODO: Move HTMLStyle logic to HTMLFormatter class
 class HTMLFormatter(Formatter):
+    """
+    A concrete implementation of the Formatter class that formats data as HTML.
+    """
     def format(self, data: str, instructions=None) -> str:
+        """
+        Format the data as an HTML string.
+
+        Args:
+            data (str): The data to format as HTML.
+            instructions (dict): The instructions for formatting the data. Currently not used by the HTML formatter.
+        
+        Returns:
+            str: The data formatted as an HTML string.
+
+        Example:
+            Parameters:
+                data = [
+                    ('/path/to/dir', 0, 'dir'),
+                    ('/path/to/dir/file1.txt', 1, 'file1.txt'),
+                    ('/path/to/dir/file2.txt', 1, 'file2.txt'),
+                    ('/path/to/dir/subdir', 1, 'subdir'),
+                    ('/path/to/dir/subdir/file3.txt', 2, 'file3.txt')
+                ]
+                instructions = {}
+            Result:
+                <html><body><pre>
+                    <ul>
+                        <li><a href="dir1/">dir1/</a></li>
+                        <ul>
+                            <li><a href="file1.txt">file1.txt</a></li>
+                            <li><a href="file2.txt">file2.txt</a></li>
+                            <li><a href="subdir1/">subdir1/</a></li>
+                            <ul>
+                                <li><a href="file3.txt">file3.txt</a></li>
+                            </ul>
+                        </ul>
+                    </ul>
+                </pre></body></html>
+        """
         html_data = HTMLStyle().write_structure(data)
         return f"<html><body><pre>{html_data}</pre></body></html>"
 
