@@ -138,18 +138,25 @@ You can summarize the directory structure using the `DirectorySummarizer` class.
 ```python
 from dirmapper_core.ai.summarizer import DirectorySummarizer
 from dirmapper_core.formatter.formatter import JSONFormatter
-from dirmapper_core.formatter.format_instruction import MinimalistFormatInstruction
+from dirmapper_core.styles.tree_style import TreeStyle
 
 # Define preferences
 preferences = {
-    "use_local": True,  # Set to False to use API-based summarization
+    "use_local": False,  # Set to False to use API-based summarization
     "api_token": "your_openai_api_token"
 }
 
+# Set the format instructions for output
+format_instruction = {
+                'style': TreeStyle(),
+                'length': 10,
+                'max_depth': 5  # Pass max depth to the summarizer
+                # Add other format instructions here
+            }
 # Initialize DirectorySummarizer
 summarizer = DirectorySummarizer(
-    formatter=JSONFormatter(),
-    format_instruction=MinimalistFormatInstruction(),
+    formatter=PlainTextFormatter(),
+    format_instruction= format_instruction,
     preferences=preferences
 )
 

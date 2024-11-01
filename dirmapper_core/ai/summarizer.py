@@ -73,7 +73,7 @@ class DirectorySummarizer:
         parsed_structure = parser.parse_directory_structure(directory_structure)['template']
 
         if self.is_local:
-            logger.warning('Localized summary functionality under construction. Set configuration to use the `api`.')
+            logger.warning('Localized summary functionality under construction. Set preferences to use the api by setting `is_local` to False.')
             return "Localized summary functionality coming soon..."
         return self._summarize_api(parsed_structure)
 
