@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.0] - 2024-11-01
+**Breaking Changes to Imports**
+- Reorganized/Modified module structure for ignore, utils, writer
+    - Moved modules around and changed names to logically make more sense
+- Fixed minor bugs
+    - Package now includes the `.mapping-ignore` for baseline ignore patterns (was missing in `v0.0.4`)
+    - Resolved circular import error in `logger.py` caused by type checking
+
 ## [0.0.4] - 2024-10-31
 **No Breaking Changes. Safe to Bump**
 - Update all functions, classes, and methods with improved documentation

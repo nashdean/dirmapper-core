@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from typing import Tuple
 from dirmapper_core.utils.logger import logger
 
 class SortingStrategy(ABC):
@@ -86,3 +87,21 @@ class DescendingSortStrategy(SortingStrategy):
         if not self.case_sensitive:
             return sorted(items, key=str.lower, reverse=True)
         return sorted(items, reverse=True)
+
+def parse_sort_argument(sort_arg: str) -> Tuple[str, bool]:
+    """
+    Parses the sort argument to determine the sorting strategy and case sensitivity.
+
+    Args:
+        sort_arg (str): The sort argument in the format 'asc', 'asc:case', 'desc', or 'desc:case'.
+
+    Returns:
+        tuple: A tuple containing the sort order and case sensitivity flag.
+    """
+    if sort_arg is None:
+        return None, False
+    
+    parts = sort_arg.split(':')
+    sort_order = parts[0]
+    case_sensitive = True if len(parts) > 1 and parts[1] == 'case' else False
+    return sort_order, case_sensitive

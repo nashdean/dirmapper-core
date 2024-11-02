@@ -2,31 +2,33 @@ import logging
 import threading
 import time
 import traceback
-from typing import Type
-from dirmapper_core.ignore.path_ignorer import PathIgnorer
+from typing import Type, TYPE_CHECKING
 
-def setup_logger(name: str) -> logging.Logger:
-    """
-    Setup a logger with the specified name. Log level is set to INFO. 
-    Formatter is set to include the log level and message.
-    
-    Args:
-        name (str): The name of the logger.
-        
-    Returns:
-        logging.Logger: The logger object.
-    """
+# Only runs for type checking and avoids circular imports in runtime; does not affect runtime
+if TYPE_CHECKING:
+    from dirmapper_core.ignore.path_ignorer import PathIgnorer
+
+def setup_logger(name, level="INFO", verbose:bool = False):
     logger = logging.getLogger(name)
-    logger.setLevel(logging.INFO)
+    logger.setLevel(level)
 
-    console_handler = logging.StreamHandler()
-    console_handler.setLevel(logging.INFO)
-    
-    formatter = logging.Formatter('%(levelname)s - %(message)s')
-    console_handler.setFormatter(formatter)
-    
-    logger.addHandler(console_handler)
-    
+    # Create console handler and set level to debug
+    ch = logging.StreamHandler()
+    ch.setLevel(level)
+
+    # Create formatter
+    if verbose:
+        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    else:
+        formatter = logging.Formatter('%(levelname)s - %(message)s')
+
+    # Add formatter to ch
+    ch.setFormatter(formatter)
+
+    # Add ch to logger
+    if not logger.handlers:
+        logger.addHandler(ch)
+
     return logger
 
 logger = setup_logger(__name__)
@@ -44,7 +46,7 @@ def log_exception(file_name:str, exc: Exception, stacktrace: bool = False) -> No
     if stacktrace:
         logger.error("Stack Trace:", exc_info=True)
 
-def log_ignored_paths(ignorer: Type[PathIgnorer]) -> None:
+def log_ignored_paths(ignorer: Type["PathIgnorer"]) -> None:
     """
     Log the ignored paths from the PathIgnorer object.
     

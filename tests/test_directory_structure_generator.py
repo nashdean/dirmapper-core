@@ -2,7 +2,7 @@ import pytest
 import os
 from dirmapper_core.generator.directory_structure_generator import DirectoryStructureGenerator
 from dirmapper_core.ignore.path_ignorer import PathIgnorer
-from dirmapper_core.utils.sorting_strategy import AscendingSortStrategy, DescendingSortStrategy, NoSortStrategy
+from dirmapper_core.sort.sorting_strategy import AscendingSortStrategy, DescendingSortStrategy, NoSortStrategy
 from dirmapper_core.ignore.ignore_list_reader import SimpleIgnorePattern, RegexIgnorePattern
 
 @pytest.mark.parametrize("sort_order, case_sensitive, expected_files", [

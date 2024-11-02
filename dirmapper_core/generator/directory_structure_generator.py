@@ -4,7 +4,7 @@ import os
 import sys
 from typing import List, Tuple
 from dirmapper_core.utils.logger import log_exception, logger, log_ignored_paths
-from dirmapper_core.utils.sorting_strategy import SortingStrategy
+from dirmapper_core.sort.sorting_strategy import SortingStrategy
 from dirmapper_core.ignore.path_ignorer import PathIgnorer
 from dirmapper_core.utils.constants import STYLE_MAP, EXTENSIONS, FORMATTER_MAP
 from dirmapper_core.styles.base_style import BaseStyle

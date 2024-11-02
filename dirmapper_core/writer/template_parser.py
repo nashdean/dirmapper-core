@@ -3,6 +3,7 @@ import json
 import os
 import re
 import datetime
+
 class TemplateParser:
     """
     Class to parse template files in YAML or JSON format.
