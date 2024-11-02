@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.1] - 2024-11-01
+**No Breaking Changes. Safe to Bump**
+- Updated expected template format so that structure is always only dicts
+    - folders are specified and recognized by a `/` forward slash appended to the end, otherwise assumed to be a file
+- Fixed writing a JSON/YAML template from a formatted directory structure string for `template_writer.py`'s function `write_template`
+- Updated README with fixes
+
 ## [0.1.0] - 2024-11-01
 **Breaking Changes to Imports**
 - Reorganized/Modified module structure for ignore, utils, writer

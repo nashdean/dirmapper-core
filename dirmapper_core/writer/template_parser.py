@@ -6,7 +6,7 @@ import datetime
 
 class TemplateParser:
     """
-    Class to parse template files in YAML or JSON format.
+    Class to parse template files in YAML or JSON format or a formatted directory structure string into a dict object.
     """
     def __init__(self, template_file: str=None):
         """
@@ -25,25 +25,29 @@ class TemplateParser:
             dict: The parsed template as a dictionary.
 
         Example:
-            template_file = 'template.yaml'
-            parsed_template = {
-                "meta": {
-                    "version": "1.1",
-                    "tool": "dirmapper",
-                    "author": "user",
-                    "creation_date": "2021-09-01T12:00:00",
-                    "last_modified": "2021-09-01T12:00:00"
-                },
-                "template": {
-                    "dir1": {
-                        "file1.txt": {},
-                        "file2.txt": {},
-                        "subdir1": {
-                            "file3.txt": {}
+            Parameters:
+                template_file = 'template.yaml'
+
+            Result:
+                {
+                    "meta": {
+                        "version": "1.1",
+                        "tool": "dirmapper",
+                        "author": "user",
+                        "creation_date": "2021-09-01T12:00:00",
+                        "last_modified": "2021-09-01T12:00:00"
+                    },
+                    "template": {
+                        "dir1": {
+                            "file1.txt": {},
+                            "file2.txt": {},
+                            "subdir1": {
+                                "file3.txt": {}
+                            }
                         }
                     }
                 }
-            }
+            
         """
         with open(self.template_file, 'r') as f:
             if self.template_file.endswith('.yaml') or self.template_file.endswith('.yml'):
@@ -153,3 +157,4 @@ class TemplateParser:
             },
             "template": root
         }
+

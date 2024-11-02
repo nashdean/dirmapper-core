@@ -54,6 +54,23 @@ generator = DirectoryStructureGenerator(
 structure = generator.generate()
 print(structure)
 ```
+Generating a directory structure results in a formatted string depending on your style and formatter. Here is an example of the `TreeStyle`:
+```
+├── requirements.txt
+├── tests/
+│   ├── test1.py
+│   └── __init__.py
+├── docs/
+├── README.md
+├── setup.py
+├── .gitignore
+├── src/
+│   ├── snake_game/
+│   │   ├── __init__.py
+│   │   ├── utils/
+│   │   │   └── helper.py
+│   │   └── main.py
+```
 
 ### Creating Directory Structure from Template
 You can create a directory structure from a template using the `StructureWriter` class. Here is an example:
@@ -100,37 +117,61 @@ writer.write_structure()
 ### Writing Directory Structure to Template File
 You can write the generated directory structure to a template file using the `write_template` function. Here is an example:
 ```python
-from dirmapper_core.writer.writer import write_template
+from dirmapper_core.writer.template_writer import write_template
 
 # Define the structure template
 structure_template = {
-    'meta': {
-        'version': '1.1',
-        'author': 'Your Name',
-        'description': 'Sample directory structure',
-        'creation_date': '2023-10-01',
-        'last_modified': '2023-10-01',
-        'license': 'MIT'
+    "meta": {
+        "version": "1.1",
+        "tool": "dirmapper",
+        "author": "root",
+        "creation_date": "2024-11-01T20:06:14.510200",
+        "last_modified": "2024-11-01T20:06:14.510211"
     },
-    'template': {
-        'src': [
-            {'main.py': ''},
-            {'utils': [
-                {'helpers.py': ''}
-            ]}
-        ],
-        'tests': [
-            {'test_main.py': ''}
-        ],
-        'README.md': ''
+    "template": {
+        "requirements.txt": {},
+        "tests/": {
+            "test1.py": {},
+            "__init__.py": {}
+        },
+        "docs/": {},
+        "README.md": {},
+        "setup.py": {},
+        ".gitignore": {},
+        "src/": {
+            "snake_game/": {
+                "__init__.py": {},
+                "utils/": {
+                    "helper.py": {}
+                },
+                "main.py": {}
+            }
+        }
     }
 }
 
 # Define the path to the template file
 template_path = 'path/to/your/template.json'
 
-# Write the structure to the template file
 write_template(template_path, structure_template)
+```
+
+Alternatively, you can use a formatted directory structure string as `structure_template` to generate a JSON or YAML template file. Here is a valid example:
+```
+├── requirements.txt
+├── tests/
+│   ├── test1.py
+│   └── __init__.py
+├── docs/
+├── README.md
+├── setup.py
+├── .gitignore
+├── src/
+│   ├── snake_game/
+│   │   ├── __init__.py
+│   │   ├── utils/
+│   │   │   └── helper.py
+│   │   └── main.py
 ```
 
 ### Summarizing Directory Structure

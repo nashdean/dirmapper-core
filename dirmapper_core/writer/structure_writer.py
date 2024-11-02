@@ -57,23 +57,61 @@ class StructureWriter:
         logger.info(f"Creating directory structure at root directory: {os.path.abspath(self.base_path)}")
         self._write_to_filesystem(self.base_path, self.template)
 
-    def _write_to_filesystem(self, base_path: str, structure: dict):
+    def _write_to_filesystem(self, base_path: str, structure: dict) -> None:
         """
         Recursively write the structure to the file system. Helper method for create_structure.
 
         Args:
             base_path (str): The base path to create the directory structure.
             structure (dict): The directory structure template to create.
+        
+        Example:
+            Parameters:
+                base_path = '/path/to/base'
+                structure = {
+                    "dir1/": {
+                        "file1.txt": {},
+                        "file2.txt": {},
+                        "subdir1/": {
+                            "file3.txt": {}
+                        }
+                    },
+                    "dir2/": {
+                        "file4.txt": {},
+                        "file5.txt": {},
+                        "subdir2/": {
+                            "file6.txt": {}
+                        }
+                    }
+                }
+            Result:
+                # Directory structure created at /path/to/base
+                /path/to/base
+                ├── dir1
+                │   ├── file1.txt
+                │   ├── file2.txt
+                │   └── subdir1
+                │       └── file3.txt
+                └── dir2
+                    ├── file4.txt
+                    ├── file5.txt
+                    └── subdir2
+                        └── file6.txt
         """
         for name, content in structure.items():
-            path = os.path.join(base_path, name)
-            if isinstance(content, list):
+            # Remove trailing slash for the actual path
+            path = os.path.join(base_path, name.rstrip('/'))
+
+            if name.endswith('/'):
+                # It's a directory
                 os.makedirs(path, exist_ok=True)
-                for item in content:
-                    if isinstance(item, dict):
-                        self._write_to_filesystem(path, item)
+                logger.debug(f"Created directory: {path}")
+                # Recursively write the contents of the directory
+                self._write_to_filesystem(path, content)
             else:
-                # Ensure the directory exists before creating the file
+                # It's a file
                 os.makedirs(os.path.dirname(path), exist_ok=True)
                 with open(path, 'w') as f:
                     f.write('')  # Create an empty file
+                logger.debug(f"Created file: {path}")
+

@@ -2,9 +2,11 @@ import json
 import os
 import yaml
 
+from dirmapper_core.writer.template_parser import TemplateParser
 from dirmapper_core.utils.logger import logger
 
-def write_template(template_path: str, structure: dict, create_missing_folders: bool = True) -> None:
+
+def write_template(template_path: str, structure: dict | str, create_missing_folders: bool = True) -> None:
     """
     Write the generated directory structure to a template file.
 
@@ -20,7 +22,14 @@ def write_template(template_path: str, structure: dict, create_missing_folders: 
         
         # Create the directory if it doesn't exist and create_missing_folders is True
         if create_missing_folders:
-            os.makedirs(os.path.dirname(template_path), exist_ok=True)
+            directory = os.path.dirname(template_path)
+            if not directory:
+                directory = os.getcwd()  # Set default directory to current working directory
+            os.makedirs(directory, exist_ok=True)
+
+        if isinstance(structure, str):
+            tp = TemplateParser()
+            structure = tp.parse_directory_structure(structure)
 
         with open(template_path, 'w') as template_file:
             if template_path.endswith('.yaml') or template_path.endswith('.yml'):
