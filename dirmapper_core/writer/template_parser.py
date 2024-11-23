@@ -38,10 +38,10 @@ class TemplateParser:
                         "last_modified": "2021-09-01T12:00:00"
                     },
                     "template": {
-                        "dir1": {
+                        "dir1/": {
                             "file1.txt": {},
                             "file2.txt": {},
-                            "subdir1": {
+                            "subdir1/": {
                                 "file3.txt": {}
                             }
                         }
@@ -99,10 +99,10 @@ class TemplateParser:
                     "last_modified": "2021-09-01T12:00:00"
                 },
                 "template": {
-                    "dir1": {
+                    "dir1/": {
                         "file1.txt": {},
                         "file2.txt": {},
-                        "subdir1": {
+                        "subdir1/": {
                             "file3.txt": {}
                         }
                     }

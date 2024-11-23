@@ -1,6 +1,7 @@
 include README.md
-recursive-include src/dirmapper/data *
+include CHANGELOG.md
 include LICENSE
+recursive-include src/dirmapper/data *
 graft dirmapper_core
 graft tests
 global-exclude __pycache__

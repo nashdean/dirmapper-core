@@ -178,7 +178,7 @@ Alternatively, you can use a formatted directory structure string as `structure_
 You can summarize the directory structure using the `DirectorySummarizer` class. Here is an example:
 ```python
 from dirmapper_core.ai.summarizer import DirectorySummarizer
-from dirmapper_core.formatter.formatter import JSONFormatter
+from dirmapper_core.formatter.formatter import JSONFormatter, PlainTextFormatter
 from dirmapper_core.styles.tree_style import TreeStyle
 
 # Define preferences
@@ -232,6 +232,23 @@ path/to/your/project
 """
 
 summary = summarizer.summarize(directory_structure)
+print(summary)
+```
+
+### Summarizing Files
+You can summarize individual files using the `FileSummarizer` class. Here is an example.
+```python
+from dirmapper_core.ai.summarizer import FileSummarizer
+
+preferences = {
+    "use_local": False,
+    "api_token": "your_openai_api_token_here"
+}
+
+file_summarizer = FileSummarizer(preferences)
+file_path = "/path/to/your/file.py"
+summary = file_summarizer.summarize_file(file_path, max_words=150)
+print("File Summary:")
 print(summary)
 ```
 
