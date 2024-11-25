@@ -2,11 +2,20 @@
 
 ## [0.1.1] - 2024-11-01
 **No Breaking Changes. Safe to Bump**
+### AI Changes
 - Created `FileSummarizer` class to summarize individual files via OpenAI API
 - Updated `DirectorySummarizer` class to include file summarization as part of the process for summarizing directories. Stores file summaries in a `summary` key in JSON formatted object during pre-processing -- this is currently overwritten by the Directory Summary which does not consider the file content during `DirectorySummarizer`'s summarization (`DirectorySummarizer` summarize function only considers file name currently for context.)
+
+### Template Changes
 - Updated expected template format so that structure is always only dicts
     - folders are specified and recognized by a `/` forward slash appended to the end, otherwise assumed to be a file
 - Fixed writing a JSON/YAML template from a formatted directory structure string for `template_writer.py`'s function `write_template`
+- The `meta` tags now include `root_path` as a field for specifying the path to write/read a directory structure. If not set or set to None, reads/writes will default to the current working directory.
+
+### Style Changes
+- **New Styles**: Added support for `IndentedTreeStyle` (formerly known as `IndentationStyle`) and changed `IndentationStyle` to be same style without the tree characters
+
+### Miscellaneous
 - Updated README with fixes
 
 ## [0.1.0] - 2024-11-01

@@ -71,7 +71,7 @@ class TemplateParser:
 
         return template
     
-    def parse_directory_structure(self, structure_str: str) -> dict:
+    def parse_from_directory_structure(self, structure_str: str) -> dict:
         """
         Parse the directory structure string and return it as a dictionary.
 
@@ -149,7 +149,7 @@ class TemplateParser:
         Returns:
             str: The detected style ('tree', 'list', 'indented_tree', 'flat').
         """
-        for line in lines:
+        for line in lines[1:]:
             line = line.rstrip('\n')
             if not line.strip():
                 continue
@@ -162,11 +162,12 @@ class TemplateParser:
             # Line contains only words and numbers with varying levels of indentation
             elif re.search(r'^\s+\w+', line):
                 return 'indentation'
+            # Line starts with '-' followed by a space
             elif re.match(r'^\s*-\s+', line):
                 return 'list'
             # Flat style: lines with paths without special formatting
-            # elif re.match(r'^\S+', line):
-            #     return 'flat'
+            elif re.match(r'^\S+', line):
+                return 'flat'
         return 'unknown'
 
     def _parse_tree_style(self, lines):
