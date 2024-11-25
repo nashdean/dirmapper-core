@@ -162,6 +162,8 @@ class TemplateParser:
             # Line contains only words and numbers with varying levels of indentation
             elif re.search(r'^\s+\w+', line):
                 return 'indentation'
+            elif re.match(r'^\s*-\s+', line):
+                return 'list'
             # Flat style: lines with paths without special formatting
             # elif re.match(r'^\S+', line):
             #     return 'flat'
@@ -374,6 +376,50 @@ class TemplateParser:
 
         return depth, name
 
+    def _parse_indentation_style(self, lines):
+        """
+        Parse the indentation style directory structure.
+        """
+        template = {}
+        stack = []
+        root_path = None
+
+        for line in lines:
+            if not line.strip():
+                continue
+
+            # Detect the root path (first line without indentation)
+            if root_path is None and not line.startswith((' ', '\t')):
+                root_path = line.strip()
+                continue
+
+            # Compute depth
+            leading_spaces = len(line) - len(line.lstrip(' '))
+            depth = leading_spaces // 4
+
+            # Get name
+            name = line.strip()
+
+            if not name:
+                continue  # Skip empty names
+
+            # Adjust the stack based on the current depth
+            while len(stack) > depth:
+                stack.pop()
+
+            new_node = {}
+
+            if len(stack) == 0:
+                # At root level
+                template[name] = new_node
+                stack.append((template[name], depth))
+            else:
+                parent_node = stack[-1][0]
+                parent_node[name] = new_node
+                stack.append((parent_node[name], depth))
+
+        return root_path, template
+
     def _parse_list_style(self, lines):
         """
         Parse the list style directory structure.
@@ -385,48 +431,43 @@ class TemplateParser:
             tuple: (root_path, template_dict)
         """
         template = {}
-        stack = []  # Stack of (current_node, indent_level)
-
+        stack = []  # Stack of (parent_node, depth)
         root_path = None
 
         for line in lines:
             if not line.strip():
                 continue
-
-            # Detect the root path (first line without any indentation or bullet points)
-            if root_path is None and not re.match(r'^\s*- ', line):
+            
+            # Detect the root path (first line without indentation)
+            if root_path is None and not line.startswith((' ', '\t')):
                 root_path = line.strip()
                 continue
 
-            # Calculate indent level based on leading spaces
-            indent_match = re.match(r'^(\s*)', line)
-            indent_str = indent_match.group(1)
-            indent_level = len(indent_str) // 4  # Assuming 4 spaces per indent
+            # Match lines that start with optional spaces, a dash, and a space
+            match = re.match(r'^(?P<indent>\s*)-\s+(?P<name>.*)', line)
+            if not match:
+                continue  # Skip lines that don't match
 
-            # Remove leading indentation and bullet points
-            name = line.strip()
-            name = re.sub(r'^- ', '', name).strip()
+            indent_str = match.group('indent')
+            name = match.group('name').strip()
 
-            # Check if it's a directory (ends with '/') or a file
-            is_dir = name.endswith('/')
+            depth = len(indent_str) // 4  # Assuming 4 spaces per indent
 
-            # Create a new node
-            new_node = {} if is_dir else {}
-
-            # Adjust the stack based on the current indentation level
-            while stack and stack[-1][1] >= indent_level:
+            # Adjust the stack based on the current depth
+            while len(stack) > depth:
                 stack.pop()
 
+            # Create a new node
+            new_node = {}
+
             if stack:
-                parent_node, _ = stack[-1]
+                parent_node = stack[-1][0]
+                parent_node[name] = new_node
             else:
-                parent_node = template
+                template[name] = new_node
 
-            parent_node[name] = new_node
-
-            # If it's a directory, push it onto the stack
-            if is_dir:
-                stack.append((new_node, indent_level))
+            # Push the new node and its depth onto the stack
+            stack.append((new_node, depth))
 
         return root_path, template
 
