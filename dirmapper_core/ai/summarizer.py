@@ -86,7 +86,7 @@ class DirectorySummarizer:
             except json.JSONDecodeError:
                 # Not JSON, assume it's a tree-like directory string
                 parser = TemplateParser()
-                parsed_structure = parser.parse_directory_structure(directory_structure)
+                parsed_structure = parser.parse_from_directory_structure(directory_structure)
         else:
             raise ValueError("directory_structure must be a str or dict")
         

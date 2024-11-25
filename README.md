@@ -56,6 +56,7 @@ print(structure)
 ```
 Generating a directory structure results in a formatted string depending on your style and formatter. Here is an example of the `TreeStyle`:
 ```
+/path/to/root/directory
 ├── requirements.txt
 ├── tests/
 │   ├── test1.py
@@ -65,11 +66,11 @@ Generating a directory structure results in a formatted string depending on your
 ├── setup.py
 ├── .gitignore
 ├── src/
-│   ├── snake_game/
-│   │   ├── __init__.py
-│   │   ├── utils/
-│   │   │   └── helper.py
-│   │   └── main.py
+│   └── snake_game/
+│       ├── __init__.py
+│       ├── utils/
+│       │   └── helper.py
+│       └── main.py
 ```
 
 ### Creating Directory Structure from Template
@@ -82,49 +83,11 @@ base_path = 'Path/To/Your/Project'
 
 # Define the structure template
 structure_template = {
-    'meta': {
-        'version': '1.1',
-        'author': 'Your Name',
-        'description': 'Sample directory structure',
-        'creation_date': '2023-10-01',
-        'last_modified': '2023-10-01',
-        'license': 'MIT'
-    },
-    'template': {
-        'src': [
-            {'main.py': ''},
-            {'utils': [
-                {'helpers.py': ''}
-            ]}
-        ],
-        'tests': [
-            {'test_main.py': ''}
-        ],
-        'README.md': ''
-    }
-}
-
-# Initialize StructureWriter
-writer = StructureWriter(base_path)
-
-# Create the directory structure
-writer.create_structure(structure_template)
-
-# Write the structure to OS file system
-writer.write_structure()
-```
-
-### Writing Directory Structure to Template File
-You can write the generated directory structure to a template file using the `write_template` function. Here is an example:
-```python
-from dirmapper_core.writer.template_writer import write_template
-
-# Define the structure template
-structure_template = {
     "meta": {
         "version": "1.1",
         "tool": "dirmapper",
         "author": "root",
+        "root_path": base_path,
         "creation_date": "2024-11-01T20:06:14.510200",
         "last_modified": "2024-11-01T20:06:14.510211"
     },
@@ -150,29 +113,110 @@ structure_template = {
     }
 }
 
+# Initialize StructureWriter
+writer = StructureWriter(base_path)
+
+# Create the directory structure
+writer.create_structure(structure_template)
+
+# Write the structure to OS file system
+writer.write_structure()
+```
+
+### Writing Directory Structure to Template File
+You can write the generated directory structure to a template file using the `write_template` function. Here is an example:
+```python
+from dirmapper_core.writer.template_writer import write_template
+
 # Define the path to the template file
 template_path = 'path/to/your/template.json'
 
+# Define the structure template
+structure_template = {
+    "meta": {
+        "version": "1.1",
+        "tool": "dirmapper",
+        "author": "root",
+        "root_path": template_path,
+        "creation_date": "2024-11-01T20:06:14.510200",
+        "last_modified": "2024-11-01T20:06:14.510211"
+    },
+    "template": {
+        "requirements.txt": {},
+        "tests/": {
+            "test1.py": {},
+            "__init__.py": {}
+        },
+        "docs/": {},
+        "README.md": {},
+        "setup.py": {},
+        ".gitignore": {},
+        "src/": {
+            "snake_game/": {
+                "__init__.py": {},
+                "utils/": {
+                    "helper.py": {}
+                },
+                "main.py": {}
+            }
+        }
+    }
+}
+
 write_template(template_path, structure_template)
 ```
+You may also use a valid styled directory string (i.e. `tree`) as your `structure_template` in the example above to write a YAML or JSON template file.
 
-Alternatively, you can use a formatted directory structure string as `structure_template` to generate a JSON or YAML template file. Here is a valid example:
-```
-├── requirements.txt
-├── tests/
-│   ├── test1.py
-│   └── __init__.py
-├── docs/
-├── README.md
-├── setup.py
+### Writing a Directory Structure Formatted String to Template
+You can create a JSON template from a formatted directory structure string. Here is a valid example using the `tree` style:
+```python
+import json
+from dirmapper_core.writer.template_parser import TemplateParser
+
+tp = TemplateParser()
+template = """
+/path/to/root/directory
+├── .git/
+├── .github/
+│   └── workflows/
+│       ├── check_version.yaml
+│       ├── publish.yaml
+│       └── update-homebrew-formula.yml
 ├── .gitignore
+├── .pytest_cache/
+├── CHANGELOG.md
+├── docs/
+├── LICENSE
+├── Makefile
+├── pyproject.toml
+├── README.md
+├── requirements.txt
 ├── src/
-│   ├── snake_game/
-│   │   ├── __init__.py
-│   │   ├── utils/
-│   │   │   └── helper.py
-│   │   └── main.py
+│   └── dirmapper/
+│       ├── __init__.py
+│       ├── ai/
+│       │   └── summarizer.py
+│       ├── api_client.py
+│       ├── config.py
+│       ├── config_manager.py
+│       ├── data/
+│       │   └── .mapping-ignore
+│       ├── main.py
+│       ├── reader/
+│       │   ├── __init__.py
+│       │   └── reader.py
+│       ├── token_manager.py
+│       └── writer/
+│           ├── __init__.py
+│           └── writer.py
+└── tests/
+    ├── __init__.py
+    └── test_main.py
+"""
+parsed_template = tp.parse_from_directory_structure(template)
+print(json.dumps(parsed_template, indent=4))
 ```
+Other allowable styles include `list`, `flat`, `indentation`, and `indented_tree`.
 
 ### Summarizing Directory Structure
 You can summarize the directory structure using the `DirectorySummarizer` class. Here is an example:

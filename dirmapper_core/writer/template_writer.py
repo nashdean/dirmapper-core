@@ -29,7 +29,7 @@ def write_template(template_path: str, structure: dict | str, create_missing_fol
 
         if isinstance(structure, str):
             tp = TemplateParser()
-            structure = tp.parse_directory_structure(structure)
+            structure = tp.parse_from_directory_structure(structure)
 
         with open(template_path, 'w') as template_file:
             if template_path.endswith('.yaml') or template_path.endswith('.yml'):

@@ -4,7 +4,7 @@
 **No Breaking Changes. Safe to Bump**
 ### AI Changes
 - Created `FileSummarizer` class to summarize individual files via OpenAI API
-- Updated `DirectorySummarizer` class to include file summarization as part of the process for summarizing directories. Stores file summaries in a `summary` key in JSON formatted object during pre-processing -- this is currently overwritten by the Directory Summary which does not consider the file content during `DirectorySummarizer`'s summarization (`DirectorySummarizer` summarize function only considers file name currently for context.)
+- Updated `DirectorySummarizer` class to include file summarization as part of the process for summarizing directories. Stores file summaries in a `content_summary` key in JSON formatted object during pre-processing -- this is currently overwritten by the Directory Summary which does not consider the file content during `DirectorySummarizer`'s summarization (`DirectorySummarizer` summarize function only considers file name currently for context.)
 
 ### Template Changes
 - Updated expected template format so that structure is always only dicts
