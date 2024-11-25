@@ -27,21 +27,21 @@ class IndentationStyle(BaseStyle):
                     ('dir1/subdir1/file3.txt', 2, 'file3.txt')
                 ]
             Result:
-               └── dir1/
-                     ├── file1.txt
-                     ├── file2.txt
-                     └── subdir1/
-                          └── file3.txt
+                path/to/root
+                dir1/
+                    file1.txt
+                    file2.txt
+                    subdir1/
+                        file3.txt
         """
+        root_dir = kwargs.get('root_dir', '')
         result = []
-        for i, (item_path, level, item) in enumerate(structure):
-            indent = '    ' * level
-            is_last = (i == len(structure) - 1 or structure[i + 1][1] < level)
-            connector = '└── ' if is_last else '├── '
-
-            if os.path.isdir(item_path):
-                result.append(f"{indent}{connector}{item}/")
-            else:
-                result.append(f"{indent}{connector}{item}")
-        
-        return '\n'.join(result)
+        if isinstance(structure, list):
+            for item_path, level, item in structure:
+                if level == 0:
+                    # Root directory
+                    result.append(f"{item_path}")
+                    continue
+                indent = '    ' * (level - 1)
+                result.append(f"{indent}{item}")
+            return '\n'.join(result)

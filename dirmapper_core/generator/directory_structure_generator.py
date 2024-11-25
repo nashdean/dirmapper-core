@@ -51,10 +51,20 @@ class DirectoryStructureGenerator:
                 raise NotADirectoryError(f'"{self.root_dir}" is not a valid path to a directory.')
             logger.info(f"Generating directory structure...")
 
-            sorted_structure = self._build_sorted_structure(self.root_dir, level=0)
+            # Start with the root directory
+            structure = []
+            root_name = os.path.abspath(self.root_dir)  # Get the absolute path
+            structure.append((root_name, 0, root_name))
 
-            instructions = {'style': self.style}
-            formatted_structure = self.formatter.format(sorted_structure, instructions)
+            sorted_structure = self._build_sorted_structure(self.root_dir, level=1)
+            structure.extend(sorted_structure)
+            
+
+            instructions = {
+                'style': self.style,
+                'root_dir': self.root_dir  # Include root_dir in instructions
+            }
+            formatted_structure = self.formatter.format(structure, instructions)
 
             # Log the ignored paths after generating the directory structure
             log_ignored_paths(self.ignorer)
@@ -84,7 +94,6 @@ class DirectoryStructureGenerator:
         sorted_contents = self.sorting_strategy.sort(dir_contents)
         
         if level > self.max_depth:
-            # Use relative path
             relative_path = os.path.relpath(current_dir, self.root_dir)
             structure.append((os.path.join(relative_path, ". . ."), level, ". . ."))
             return structure

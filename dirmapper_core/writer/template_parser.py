@@ -56,7 +56,7 @@ class TemplateParser:
                 template = json.load(f)
             else:
                 raise ValueError("Unsupported template file format. Please use YAML or JSON.")
-        
+
         # Add author, creation_date, and last_modified to meta if not present
         if 'meta' not in template:
             template['meta'] = {}
@@ -110,26 +110,96 @@ class TemplateParser:
             }
         """
         lines = structure_str.strip().split('\n')
-        root = {}
-        stack = [(root, -1)]  # Stack of (current_node, indent_level)
+
+        # Detect style
+        style = self._detect_style(lines)
+        if style == 'tree':
+            root_path, template = self._parse_tree_style(lines)
+        elif style == 'list':
+            root_path, template = self._parse_list_style(lines)
+        elif style == 'indented_tree':
+            root_path, template = self._parse_indented_tree_style(lines)
+        elif style == 'flat':
+            root_path, template = self._parse_flat_style(lines)
+        else:
+            raise ValueError("Unsupported directory structure format.")
+
+        # Wrap the template with metadata
+        return {
+            "meta": {
+                "version": "1.1",
+                "tool": "dirmapper",
+                "author": os.getlogin(),
+                "root_path": root_path,
+                "creation_date": datetime.datetime.now().isoformat(),
+                "last_modified": datetime.datetime.now().isoformat()
+            },
+            "template": template
+        }
+
+    def _detect_style(self, lines):
+        """
+        Detect the style of the directory structure based on the content.
+
+        Args:
+            lines (list): The lines of the directory structure string.
+
+        Returns:
+            str: The detected style ('tree', 'list', 'indented_tree', 'flat').
+        """
+        for line in lines:
+            line = line.rstrip('\n')
+            if not line.strip():
+                continue
+            # Line starts with indentation and tree-drawing characters
+            if re.search(r'^[\s]*(├──|└──)', line):
+                return 'indented_tree'
+            # Line contains '│', indicating tree style
+            elif re.search(r'[│]', line):
+                return 'tree'
+            # Flat style: lines with paths without special formatting
+            elif re.match(r'^\S+', line):
+                return 'flat'
+        return 'unknown'
+
+    def _parse_tree_style(self, lines):
+        """
+        Parse the tree style directory structure.
+
+        Args:
+            lines (list): The lines of the directory structure string.
+
+        Returns:
+            tuple: (root_path, template_dict)
+        """
+        template = {}
+        stack = []  # Stack of (current_node, indent_level)
+
+        root_path = None
 
         for line in lines:
             if not line.strip():
                 continue
 
-            # Calculate indent level based on leading tree characters
-            indent_match = re.match(r'^(│   )*', line)
+            # Detect the root path (first line without any indentation or connectors)
+            if root_path is None and not re.match(r'^\s*[├└]', line):
+                root_path = line.strip()
+                continue
+
+            # Replace '│' with '|' to simplify processing
+            line_clean = line.replace('│', '|')
+
+            # Calculate indent level based on leading spaces and '|' characters
+            indent_match = re.match(r'^(\s*[\| ]*)', line_clean)
             indent_str = indent_match.group(0) if indent_match else ''
-            indent_level = indent_str.count('│   ')
+            indent_level = indent_str.count('|')
 
             # Remove leading indentation and tree mapping characters
             name = line[len(indent_str):].strip()
-            name = re.sub(r'^(├── |└── )', '', name).strip()
+            name = re.sub(r'^[├└][─]{2} ', '', name).strip()
 
             # Check if it's a directory (ends with '/') or a file
             is_dir = name.endswith('/')
-            # if is_dir:
-            #     name = name.rstrip('/')
 
             # Create a new node
             new_node = {} if is_dir else {}
@@ -138,23 +208,269 @@ class TemplateParser:
             while stack and stack[-1][1] >= indent_level:
                 stack.pop()
 
-            # Add the new node to its parent in the stack
-            parent_node, _ = stack[-1]
+            if stack:
+                parent_node, _ = stack[-1]
+            else:
+                parent_node = template
+
             parent_node[name] = new_node
 
             # If it's a directory, push it onto the stack
             if is_dir:
                 stack.append((new_node, indent_level))
 
-        # Wrap the root in a template with metadata
-        return {
-            "meta": {
-                "version": "1.1",
-                "tool": "dirmapper",
-                "author": os.getlogin(),
-                "creation_date": datetime.datetime.now().isoformat(),
-                "last_modified": datetime.datetime.now().isoformat()
-            },
-            "template": root
-        }
+        return root_path, template
 
+    def _parse_tree_style(self, lines):
+        """
+        Parse the tree style directory structure.
+        """
+        template = {}
+        stack = []  # Stack of (parent_node, depth)
+
+        root_path = None
+
+        for line in lines:
+            if not line.strip():
+                continue
+
+            # Detect the root path (first line without any indentation or connectors)
+            if root_path is None and not re.match(r'^\s*[├└│]', line):
+                root_path = line.strip()
+                continue
+
+            # Get depth and name
+            depth, name = self._get_depth_and_name(line)
+
+            # Adjust the stack based on the current depth
+            while len(stack) > depth:
+                stack.pop()
+
+            # Create a new node
+            is_dir = name.endswith('/')
+            new_node = {} if is_dir else {}
+
+            if depth == 0:
+                # At root level
+                template[name] = new_node
+                if is_dir:
+                    stack.append((template[name], depth))
+            else:
+                if stack:
+                    parent_node = stack[-1][0]
+                    parent_node[name] = new_node
+                    if is_dir:
+                        stack.append((parent_node[name], depth))
+                else:
+                    # Should not happen, but just in case
+                    template[name] = new_node
+                    if is_dir:
+                        stack.append((template[name], depth))
+
+        return root_path, template
+    
+    def _get_depth_and_name(self, line):
+        """
+        Extract the depth and name from a line in the tree structure.
+        """
+        pattern = r'^(?P<indent>(?:    |│   )*)(?:[├└][─]{2} )?(?P<name>.*)'
+        match = re.match(pattern, line)
+        if match:
+            indent = match.group('indent')
+            name = match.group('name').strip()
+            # Calculate depth
+            depth = 0
+            index = 0
+            while index < len(indent):
+                chunk = indent[index:index+4]
+                if chunk in ('    ', '│   '):
+                    depth +=1
+                    index +=4
+                else:
+                    break
+            return depth, name
+        else:
+            # Line does not match expected pattern
+            return 0, line.strip()
+    
+    def _parse_indented_tree_style(self, lines):
+        """
+        Parse the indented tree style directory structure.
+
+        Args:
+            lines (list): The lines of the directory structure string.
+
+        Returns:
+            tuple: (root_path, template_dict)
+        """
+        template = {}
+        stack = []  # Stack of (parent_node, depth)
+        root_path = None
+
+        for line in lines:
+            if not line.strip():
+                continue
+
+            # Detect the root path (first line without indentation)
+            if root_path is None and not line.startswith((' ', '\t')):
+                root_path = line.strip()
+                continue
+
+            # Get depth and name
+            depth, name = self._get_indented_depth_and_name(line)
+
+            # Determine if it's a directory (ends with '/')
+            is_dir = name.endswith('/')
+
+            # Create a new node
+            new_node = {} if is_dir else {}
+
+            # Adjust the stack based on the current depth
+            while len(stack) and stack[-1][1] >= depth:
+                stack.pop()
+
+            if stack:
+                parent_node = stack[-1][0]
+                parent_node[name] = new_node
+            else:
+                template[name] = new_node
+
+            if is_dir:
+                stack.append((new_node, depth))
+
+        return root_path, template
+
+    def _get_indented_depth_and_name(self, line):
+        """
+        Extract the depth and name from a line in the indented tree structure.
+
+        Args:
+            line (str): A line from the directory structure string.
+
+        Returns:
+            tuple: (depth, name)
+        """
+        # Replace tabs with 4 spaces
+        line = line.replace('\t', '    ')
+
+        # Initialize depth and index
+        depth = 0
+        i = 0
+        length = len(line)
+
+        # Count indentation units ('    ' or '│   ')
+        while i + 4 <= length:
+            chunk = line[i:i+4]
+            if chunk == '    ' or chunk == '│   ':
+                depth += 1
+                i += 4
+            else:
+                break
+
+        # Check for tree-drawing characters and skip them
+        if line[i:].startswith('├── '):
+            i += 4
+        elif line[i:].startswith('└── '):
+            i += 4
+
+        # Extract the name
+        name = line[i:].strip()
+
+        return depth, name
+
+    def _parse_list_style(self, lines):
+        """
+        Parse the list style directory structure.
+
+        Args:
+            lines (list): The lines of the directory structure string.
+
+        Returns:
+            tuple: (root_path, template_dict)
+        """
+        template = {}
+        stack = []  # Stack of (current_node, indent_level)
+
+        root_path = None
+
+        for line in lines:
+            if not line.strip():
+                continue
+
+            # Detect the root path (first line without any indentation or bullet points)
+            if root_path is None and not re.match(r'^\s*- ', line):
+                root_path = line.strip()
+                continue
+
+            # Calculate indent level based on leading spaces
+            indent_match = re.match(r'^(\s*)', line)
+            indent_str = indent_match.group(1)
+            indent_level = len(indent_str) // 4  # Assuming 4 spaces per indent
+
+            # Remove leading indentation and bullet points
+            name = line.strip()
+            name = re.sub(r'^- ', '', name).strip()
+
+            # Check if it's a directory (ends with '/') or a file
+            is_dir = name.endswith('/')
+
+            # Create a new node
+            new_node = {} if is_dir else {}
+
+            # Adjust the stack based on the current indentation level
+            while stack and stack[-1][1] >= indent_level:
+                stack.pop()
+
+            if stack:
+                parent_node, _ = stack[-1]
+            else:
+                parent_node = template
+
+            parent_node[name] = new_node
+
+            # If it's a directory, push it onto the stack
+            if is_dir:
+                stack.append((new_node, indent_level))
+
+        return root_path, template
+
+    def _parse_flat_style(self, lines):
+        """
+        Parse the flat style directory structure.
+
+        Args:
+            lines (list): The lines of the directory structure string.
+
+        Returns:
+            tuple: (root_path, template_dict)
+        """
+        template = {}
+        root_path = None
+
+        # Check if the first line is an absolute path
+        if lines and lines[0].startswith('/'):
+            root_path = lines[0].strip()
+            lines = lines[1:]  # Remove the root path from the lines
+        else:
+            root_path = '/'
+
+        for line in lines:
+            if not line.strip():
+                continue
+
+            path = line.strip()
+            parts = path.strip('/').split('/')
+
+            if not parts:
+                continue
+
+            current_node = template
+            for i, part in enumerate(parts):
+                is_dir = (i < len(parts) - 1) or path.endswith('/')
+                part_name = part + '/' if is_dir else part
+
+                if part_name not in current_node:
+                    current_node[part_name] = {}
+                current_node = current_node[part_name]
+
+        return root_path, template

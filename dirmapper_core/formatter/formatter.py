@@ -56,8 +56,9 @@ class PlainTextFormatter(Formatter):
                     └── file3.txt
         """
         style = instructions.get('style')
+        style_instructions = {k: v for k, v in instructions.items() if k != 'style'}
         if style:
-            return style.write_structure(data)
+            return style.write_structure(data, **style_instructions)
         return data
 
 #TODO: Move HTMLStyle logic to HTMLFormatter class

@@ -32,18 +32,40 @@ class TreeStyle(BaseStyle):
                 └── subdir1/
                     └── file3.txt
         """
+        root_dir = kwargs.get('root_dir', '')
         result = []
         if isinstance(structure, list):
+            levels_has_next = []
             for i, (item_path, level, item) in enumerate(structure):
-                indent = '│   ' * level
-                is_last = (i == len(structure) - 1 or structure[i + 1][1] < level)
+                if level == 0:
+                    # Root directory
+                    result.append(f"{item_path}")
+                    levels_has_next = []  # Reset levels_has_next for root
+                    continue  # Skip to next item
+
+                # Determine if this is the last item at its level
+                is_last = self._is_last_item(structure, i, level)
+
+                # Update levels_has_next
+                if len(levels_has_next) < level:
+                    levels_has_next.extend([True] * (level - len(levels_has_next)))
+                levels_has_next[level - 1] = not is_last
+
+                # Build the indentation
+                indent = ''
+                for lvl in range(level - 1):
+                    if levels_has_next[lvl]:
+                        indent += '│   '
+                    else:
+                        indent += '    '
                 connector = '└── ' if is_last else '├── '
 
-                if os.path.isdir(item_path):
+                full_item_path = os.path.join(root_dir, item_path)
+                if os.path.isdir(full_item_path):
                     result.append(f"{indent}{connector}{item}/")
                 else:
                     result.append(f"{indent}{connector}{item}")
-            
+
             return '\n'.join(result)
         elif isinstance(structure, dict):
             lines = []
@@ -190,3 +212,13 @@ class TreeStyle(BaseStyle):
             str: The indentation string.
         """
         return '│   ' * level
+    
+    def _is_last_item(self, structure, index, current_level):
+        # Check if there is any next item at the same level
+        for next_index in range(index + 1, len(structure)):
+            next_level = structure[next_index][1]
+            if next_level == current_level:
+                return False  # There is another item at the same level
+            elif next_level < current_level:
+                break
+        return True  # No more items at the same level

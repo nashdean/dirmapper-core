@@ -33,11 +33,14 @@ class ListStyle(BaseStyle):
                     - subdir1/
                         - file3.txt
         """
+        root_dir = kwargs.get('root_dir', '')  # Get root_dir from kwargs if needed
         result = []
-        for item_path, level, item in structure:
-            indent = '    ' * level
-            if os.path.isdir(item_path):
-                result.append(f"{indent}- {item}/")
-            else:
+        if isinstance(structure, list):
+            for item_path, level, item in structure:
+                if level == 0:
+                    # Root directory
+                    result.append(f"{item_path}")
+                    continue
+                indent = '    ' * (level - 1)  # Adjust indentation
                 result.append(f"{indent}- {item}")
-        return '\n'.join(result)
+            return '\n'.join(result)
