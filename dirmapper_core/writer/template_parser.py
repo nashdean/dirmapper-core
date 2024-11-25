@@ -119,6 +119,8 @@ class TemplateParser:
             root_path, template = self._parse_list_style(lines)
         elif style == 'indented_tree':
             root_path, template = self._parse_indented_tree_style(lines)
+        elif style == 'indentation':
+            root_path, template = self._parse_indentation_style(lines)
         elif style == 'flat':
             root_path, template = self._parse_flat_style(lines)
         else:
@@ -151,15 +153,18 @@ class TemplateParser:
             line = line.rstrip('\n')
             if not line.strip():
                 continue
-            # Line starts with indentation and tree-drawing characters
-            if re.search(r'^[\s]*(├──|└──)', line):
-                return 'indented_tree'
-            # Line contains '│', indicating tree style
-            elif re.search(r'[│]', line):
+            # Line starts with tree-drawing characters without leading spaces
+            if re.search(r'^(├──|└──)', line):
                 return 'tree'
+            # Line starts with spaces followed by tree-drawing characters
+            elif re.search(r'^\s+(├──|└──)', line):
+                return 'indented_tree'
+            # Line contains only words and numbers with varying levels of indentation
+            elif re.search(r'^\s+\w+', line):
+                return 'indentation'
             # Flat style: lines with paths without special formatting
-            elif re.match(r'^\S+', line):
-                return 'flat'
+            # elif re.match(r'^\S+', line):
+            #     return 'flat'
         return 'unknown'
 
     def _parse_tree_style(self, lines):
@@ -268,7 +273,7 @@ class TemplateParser:
                         stack.append((template[name], depth))
 
         return root_path, template
-    
+
     def _get_depth_and_name(self, line):
         """
         Extract the depth and name from a line in the tree structure.
@@ -353,28 +358,19 @@ class TemplateParser:
         # Replace tabs with 4 spaces
         line = line.replace('\t', '    ')
 
-        # Initialize depth and index
-        depth = 0
-        i = 0
-        length = len(line)
+        # Count the number of leading spaces
+        leading_spaces = len(line) - len(line.lstrip(' '))
 
-        # Count indentation units ('    ' or '│   ')
-        while i + 4 <= length:
-            chunk = line[i:i+4]
-            if chunk == '    ' or chunk == '│   ':
-                depth += 1
-                i += 4
-            else:
-                break
+        # Calculate depth (assuming 4 spaces per indent level)
+        depth = leading_spaces // 4
 
-        # Check for tree-drawing characters and skip them
-        if line[i:].startswith('├── '):
-            i += 4
-        elif line[i:].startswith('└── '):
-            i += 4
+        # Remove leading spaces
+        line = line.lstrip(' ')
 
-        # Extract the name
-        name = line[i:].strip()
+        # Remove any tree-drawing characters and spaces at the beginning
+        line = re.sub(r'^[│├└─\s]+', '', line)
+
+        name = line.strip()
 
         return depth, name
 
