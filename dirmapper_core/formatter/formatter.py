@@ -15,7 +15,7 @@ class Formatter(ABC):
     Abstract class for formatters. Formatters are responsible for converting data into a specific format (e.g., plain text, HTML, JSON, etc.).
     """
     @abstractmethod
-    def format(self, data, instructions=None) -> str:
+    def format(self, data, instructions=None) -> str | dict:
         """
         Abstract method to format the data into a specific format.
         """
