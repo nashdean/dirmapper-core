@@ -7,7 +7,7 @@ class IndentationStyle(BaseStyle):
     IndentationStyle class for generating a directory structure in an indented format.
     """
     #TODO: Update this method to work with the template summarizer; see tree_style for details
-    def write_structure(self, structure: List[Tuple[str, int, str]], **kwargs) -> str:
+    def write_structure(structure: List[Tuple[str, int, str]], **kwargs) -> str:
         """
         Write the directory structure in an indented format. Similar to the tree format, but without the trunk/straight pipe characters.
 

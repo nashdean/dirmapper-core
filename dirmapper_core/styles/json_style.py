@@ -13,7 +13,8 @@ class JSONStyle(BaseStyle):
     """
     JSONStyle is a concrete class that inherits from the BaseStyle class. It provides an implementation for the write_structure method that converts a directory structure into a JSON representation.
     """
-    def write_structure(self, structure: List[Tuple[str, int, str]], **kwargs) -> dict:
+    @staticmethod
+    def write_structure(structure: List[Tuple[str, int, str]], **kwargs) -> dict:
         """
         Converts a list of tuples representing a directory structure into a JSON-like representation. 
         Each file or directory includes a "__keys__" field containing metadata (e.g., type, size, 
@@ -167,20 +168,34 @@ class JSONStyle(BaseStyle):
                     "size": 0
                 }
             
-        def build_json_structure(structure, level: int) -> Tuple[dict, int]:
+        def build_json_structure(structure, start_index: int, current_level: int, parent_path: str) -> Tuple[dict, int]:
             """
             Builds the modified JSON-like structure with real metadata.
             """
             result = {}
-            i = 0
+            i = start_index
             while i < len(structure):
                 item_path, item_level, item_name = structure[i]
-                is_dir = os.path.isdir(item_path)
-                metadata = get_metadata(item_path, is_dir)
+                if item_level < current_level:
+                    # We've moved back to a higher level; return to the previous call
+                    break
+
+                # Construct the full path to the item
+                full_item_path = os.path.join(parent_path, item_name)
+
+                # Determine if item is a directory based on the next item's level
+                if (i + 1) < len(structure) and structure[i + 1][1] > item_level:
+                    is_dir = True
+                else:
+                    is_dir = False
+
+                metadata = get_metadata(full_item_path, is_dir)
 
                 if is_dir:
-                    folder_key = f"{item_name}/"
-                    sub_structure, sub_items = build_json_structure(structure[i + 1:], level + 1)
+                    # Recursively build the sub-structure
+                    sub_structure, new_index = build_json_structure(structure, i + 1, item_level + 1, full_item_path)
+                    # Append '/' to directory names for consistency
+                    folder_key = item_name + '/'
                     result[folder_key] = {
                         "__keys__": {
                             "meta": metadata,
@@ -191,7 +206,7 @@ class JSONStyle(BaseStyle):
                         },
                         **sub_structure
                     }
-                    i += sub_items
+                    i = new_index  # Update index to the position returned by recursion
                 else:
                     result[item_name] = {
                         "__keys__": {
@@ -203,18 +218,17 @@ class JSONStyle(BaseStyle):
                             }
                         }
                     }
-                i += 1
+                    i += 1  # Move to the next item
 
             return result, i
-
-        # Start building the structure at level 0
-        root_path, _, root_name = structure[0]
-        _, root_level, _ = structure[0]
-        json_structure, _ = build_json_structure(structure[1:], root_level + 1)
+        
+        # Start building the structure at level root_level + 1
+        root_path, root_level, root_name = structure[0]
+        json_structure, _ = build_json_structure(structure, 1, root_level + 1, root_path)
 
         # Include metadata for the root directory and attach its contents
         return {
-            root_path: {
+            root_name + '/': {
                 "__keys__": {
                     "meta": get_metadata(root_path, is_dir=True),
                     "content": {
@@ -225,3 +239,4 @@ class JSONStyle(BaseStyle):
                 **json_structure
             }
         }
+

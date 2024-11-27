@@ -1,3 +1,4 @@
+import re
 from typing import List, Tuple
 import os
 from dirmapper_core.styles.base_style import BaseStyle
@@ -6,7 +7,8 @@ class TreeStyle(BaseStyle):
     """
     TreeStyle class for generating a directory structure in a tree format.
     """
-    def write_structure(self, structure: List[Tuple[str, int, str]] | dict, **kwargs) -> str:
+    @staticmethod
+    def write_structure(structure: List[Tuple[str, int, str]] | dict, **kwargs) -> str:
         """
         Write the directory structure in a tree format.
 
@@ -26,6 +28,7 @@ class TreeStyle(BaseStyle):
                     ('dir1/subdir1/file3.txt', 2, 'file3.txt')
                 ]
             Result:
+                path/to/root
                 dir1/
                 ├── file1.txt
                 ├── file2.txt
@@ -44,7 +47,7 @@ class TreeStyle(BaseStyle):
                     continue  # Skip to next item
 
                 # Determine if this is the last item at its level
-                is_last = self._is_last_item(structure, i, level)
+                is_last = TreeStyle._is_last_item(structure, i, level)
 
                 # Update levels_has_next
                 if len(levels_has_next) < level:
@@ -69,7 +72,7 @@ class TreeStyle(BaseStyle):
             return '\n'.join(result)
         elif isinstance(structure, dict):
             lines = []
-            self._write_from_dict(structure, '', True, lines)
+            TreeStyle._write_from_dict(structure, '', True, lines)
 
             # Calculate the maximum length of lines before comments
             max_length = max(len(line[0]) for line in lines) if lines else 0
@@ -83,7 +86,83 @@ class TreeStyle(BaseStyle):
                     formatted_lines.append(line_content)
             return '\n'.join(formatted_lines)
     
-    def _write_from_dict(self, structure: dict | list, prefix: str, is_last: bool, lines: list, level: int=0) -> None:
+    def parse_tree_structure(tree_str: str, root_dir: str = "") -> List[Tuple[str, int, str]]:
+        """
+        Parse a tree structure string back into a list of tuples representing
+        the directory structure.
+
+        Args:
+            tree_str (str): The tree structure string.
+            root_dir (str): The root directory path to prepend to all paths.
+
+        Returns:
+            List[Tuple[str, int, str]]: A list of tuples representing the directory structure.
+        """
+        lines = tree_str.strip().splitlines()
+        structure = []
+        parent_paths = []  # Stack to manage parent paths based on levels
+
+        root_dir_included = False
+
+        for line_num, line in enumerate(lines):
+            # Skip empty lines
+            if not line.strip():
+                continue
+
+            # Detect root line
+            if not root_dir_included and not re.match(r'^\s*[│├└]', line):
+                # This is the root directory
+                item_name = line.strip()
+                level = 0
+                current_path = item_name
+                parent_paths = [""]  # Include an empty string for the root directory
+                structure.append((current_path, level, item_name))
+                root_dir_included = True
+                continue
+
+            # Clean up the line
+            # Replace '│   ' with '\t'
+            line_clean = line.replace('│   ', '\t')
+            # Replace '    ' (4 spaces) with '\t'
+            line_clean = line_clean.replace('    ', '\t')
+            # Replace any remaining '│' with '\t' (in case of single '│' characters)
+            line_clean = line_clean.replace('│', '\t')
+
+            # Match indent and name
+            indent_match = re.match(r'^(?P<indent>\t*)([├└][─]{2} )?(?P<name>.+)', line_clean)
+            if not indent_match:
+                continue  # Skip lines that don't match the pattern
+
+            indent_str = indent_match.group('indent')
+            name = indent_match.group('name').rstrip('/').strip()
+            is_folder = line.strip().endswith('/')
+
+            # Calculate level
+            level = len(indent_str) + 1  # +1 because root is level 0
+
+            # Update parent_paths
+            if level <= len(parent_paths):
+                parent_paths = parent_paths[:level]
+            else:
+                # Extend parent_paths if we're deeper than before
+                pass  # This case will naturally be handled when we append to parent_paths
+
+            if parent_paths:
+                parent = parent_paths[-1]
+                current_path = os.path.join(parent, name)
+            # else:
+            #     # Should not reach here because root directory should be included
+            #     current_path = os.path.join(root_dir, name)
+
+            if is_folder:
+                parent_paths.append(current_path)
+
+            structure.append((current_path, level, name))
+
+        return structure
+
+    @staticmethod
+    def _write_from_dict(structure: dict | list, prefix: str, is_last: bool, lines: list, level: int=0) -> None:
         """
         Recursively write the directory structure from a dictionary by modifying the lines list in place.
         
@@ -125,7 +204,7 @@ class TreeStyle(BaseStyle):
             for idx, (key, value) in enumerate(items):
                 is_last_item = idx == len(items) - 1
                 connector = '└── ' if is_last_item else '├── '
-                indent = self._get_indent(level)
+                indent = TreeStyle._get_indent(level)
                 line = f"{indent}{connector}{key}"
                 summary = ''
                 if isinstance(value, dict) and 'summary' in value:
@@ -137,13 +216,13 @@ class TreeStyle(BaseStyle):
                 if isinstance(value, dict):
                     # Exclude the 'summary' key when recursing
                     child_structure = {k: v for k, v in value.items() if k != 'summary'}
-                    self._write_from_dict(child_structure, prefix + key + '/', is_last_item, lines, level + 1)
+                    TreeStyle._write_from_dict(child_structure, prefix + key + '/', is_last_item, lines, level + 1)
                 elif isinstance(value, list):
-                    self._write_from_list(value, prefix + key + '/', is_last_item, lines, level + 1)
+                    TreeStyle._write_from_list(value, prefix + key + '/', is_last_item, lines, level + 1)
         elif isinstance(structure, list):
-            self._write_from_list(structure, prefix, is_last, lines, level)
+            TreeStyle._write_from_list(structure, prefix, is_last, lines, level)
     
-    def _write_from_list(self, structure, prefix, is_last, lines, level):
+    def _write_from_list(structure, prefix, is_last, lines, level):
         """
         Recursively write the directory structure from a list by modifying the lines list in place.
         Helper method for _write_from_dict.
@@ -199,9 +278,9 @@ class TreeStyle(BaseStyle):
             """
         for idx, item in enumerate(structure):
             is_last_item = idx == len(structure) - 1
-            self._write_from_dict(item, prefix, is_last_item, lines, level)
+            TreeStyle._write_from_dict(item, prefix, is_last_item, lines, level)
     
-    def _get_indent(self, level):
+    def _get_indent(level):
         """
         Get the indentation string for the specified level. Helper method for _write_from_dict.
 
@@ -213,7 +292,7 @@ class TreeStyle(BaseStyle):
         """
         return '│   ' * level
     
-    def _is_last_item(self, structure, index, current_level):
+    def _is_last_item(structure, index, current_level):
         # Check if there is any next item at the same level
         for next_index in range(index + 1, len(structure)):
             next_level = structure[next_index][1]

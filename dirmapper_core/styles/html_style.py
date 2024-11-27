@@ -7,7 +7,7 @@ class HTMLStyle(BaseStyle):
     HTMLStyle class for generating a directory structure in an HTML format.
     """
     #TODO: Update this method to work with the template summarizer; see tree_style for context
-    def write_structure(self, structure: List[Tuple[str, int, str]], **kwargs) -> str:
+    def write_structure(structure: List[Tuple[str, int, str]], **kwargs) -> str:
         """
         Write the directory structure in an HTML format.
 

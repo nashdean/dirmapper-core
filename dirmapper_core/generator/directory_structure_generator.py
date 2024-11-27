@@ -29,7 +29,7 @@ class DirectoryStructureGenerator:
         self.output = output
         self.ignorer = ignorer
         self.sorting_strategy = sorting_strategy
-        self.style = style if style else STYLE_MAP['tree']()
+        self.style = style if style else STYLE_MAP['tree']
         self.formatter = formatter if formatter else FORMATTER_MAP['plain']()
         self.max_depth = max_depth
 
@@ -46,37 +46,37 @@ class DirectoryStructureGenerator:
             NotADirectoryError: If the root directory is not valid.
             Exception: If any other error occurs during generation.
         """
-        try:
-            if not self.verify_path(self.root_dir):
-                raise NotADirectoryError(f'"{self.root_dir}" is not a valid path to a directory.')
-            logger.info(f"Generating directory structure...")
+        # try:
+        if not self.verify_path(self.root_dir):
+            raise NotADirectoryError(f'"{self.root_dir}" is not a valid path to a directory.')
+        logger.info(f"Generating directory structure...")
 
-            # Start with the root directory
-            structure = []
-            root_name = os.path.abspath(self.root_dir)  # Get the absolute path
-            structure.append((root_name, 0, root_name))
+        # Start with the root directory
+        structure = []
+        root_name = os.path.abspath(self.root_dir)  # Get the absolute path
+        structure.append((root_name, 0, root_name))
 
-            sorted_structure = self._build_sorted_structure(self.root_dir, level=1)
-            structure.extend(sorted_structure)
-            
+        sorted_structure = self._build_sorted_structure(self.root_dir, level=1)
+        structure.extend(sorted_structure)
+        
 
-            instructions = {
-                'style': self.style,
-                'root_dir': self.root_dir  # Include root_dir in instructions
-            }
-            formatted_structure = self.formatter.format(structure, instructions)
+        instructions = {
+            'style': self.style,
+            'root_dir': self.root_dir  # Include root_dir in instructions
+        }
+        formatted_structure = self.formatter.format(structure, instructions)
 
-            # Log the ignored paths after generating the directory structure
-            log_ignored_paths(self.ignorer)
+        # Log the ignored paths after generating the directory structure
+        log_ignored_paths(self.ignorer)
 
-            return formatted_structure
+        return formatted_structure
 
-        except NotADirectoryError as e:
-            log_exception(os.path.basename(__file__), e)
-            sys.exit(1)
-        except Exception as e:
-            log_exception(os.path.basename(__file__), e)
-            print(f"Error: {e}")
+        # except NotADirectoryError as e:
+        #     log_exception(os.path.basename(__file__), e)
+        #     sys.exit(1)
+        # except Exception as e:
+        #     log_exception(os.path.basename(__file__), e)
+        #     print(f"Error: {e}")
 
     def _build_sorted_structure(self, current_dir: str, level: int) -> List[Tuple[str, int, str]]:
         """

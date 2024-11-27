@@ -25,7 +25,7 @@ class PlainTextFormatter(Formatter):
     """
     A concrete implementation of the Formatter class that formats data as plain text.
     """
-    def format(self, data: str, instructions:dict={'style':TreeStyle()}) -> str:
+    def format(self, data: str, instructions:dict={'style':TreeStyle}) -> str:
         """
         Format the data as plain text.
 
@@ -117,7 +117,7 @@ class JSONFormatter(Formatter):
         if isinstance(data, dict):
             return json.dumps(data, indent=4)
         elif isinstance(data, list):
-            return json.dumps(JSONStyle().write_structure(data), indent=4)
+            return json.dumps(JSONStyle.write_structure(data), indent=4)
         else:
             raise ValueError("Data must be a dictionary or a JSON string to format as JSON")
 

@@ -6,7 +6,7 @@ class IndentedTreeStyle(BaseStyle):
     """
     IndentedTreeStyle class for generating a directory structure in an indented tree format.
     """
-    def write_structure(self, structure: List[Tuple[str, int, str]] | dict, **kwargs) -> str:
+    def write_structure(structure: List[Tuple[str, int, str]] | dict, **kwargs) -> str:
         """
         Write the directory structure in an indented tree format.
 

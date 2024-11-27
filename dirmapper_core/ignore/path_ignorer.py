@@ -14,7 +14,7 @@ class PathIgnorer:
         root_ignored_counts (defaultdict): A dictionary to keep track of ignored paths per root directory.
         root_directories (Set[str]): A set of root directories.
     """
-    def __init__(self, ignore_list: List[IgnorePattern]):
+    def __init__(self, ignore_list: List[IgnorePattern] = []):
         """
         Initialize the PathIgnorer with a list of ignore patterns.
         

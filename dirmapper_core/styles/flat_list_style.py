@@ -6,7 +6,7 @@ class FlatListStyle(BaseStyle):
     FlatListStyle is a concrete class that inherits from the BaseStyle class. It provides an implementation for the write_structure method that converts a directory structure into a flat list representation.
     """
     #TODO: Update this method to work with the template summarizer; see tree_style for details
-    def write_structure(self, structure: List[Tuple[str, int, str]], **kwargs) -> str:
+    def write_structure(structure: List[Tuple[str, int, str]], **kwargs) -> str:
         """
         Takes a list of tuples representing the directory structure and returns a flat list representation of the structure.
 
