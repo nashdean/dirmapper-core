@@ -38,9 +38,9 @@ class DirectoryStructureGenerator:
 
         logger.info(f"Directory structure generator initialized for root dir: {root_dir}, output file: {output}, style: {self.style.__class__.__name__}, formatter: {self.formatter.__class__.__name__}")
 
-    def generate(self) -> str:
+    def generate(self) -> str | dict:
         """
-        Generate the directory structure and returns it as a string.
+        Generate the directory structure and returns it as a string or JSON template depending on the DirectoryStructureGenerator selected `style` input.
         
         Raises:
             NotADirectoryError: If the root directory is not valid.

@@ -48,16 +48,25 @@ class StructureWriter:
         logger.info(f"Template Last modified: {last_modified}")
         logger.debug(f"Template License: {license}")
 
-    def write_structure(self):
+    def write_structure(self, safety_check: bool = True):
         """
         Write the directory structure to the file system, if base_path is set.
+
+        Args:
+            safety_check (bool): Flag indicating whether to prompt the user before writing to the file system. Defaults to True.
         """
         if not self.base_path:
             raise ValueError("Base path not set. Cannot write to file system.")
+        if safety_check:
+            logger.warning(f"Safety is enabled. You are about to create directories and files on the file system and may overwrite directories/files of the same name at the `{os.path.abspath(self.base_path)}` path. Please ensure you have the correct permissions.")
+            response = input("Do you want to continue? (y/n): ")
+            if response.lower() != 'y':
+                logger.info("Aborting operation.")
+                return False
         logger.info(f"Creating directory structure at root directory: {os.path.abspath(self.base_path)}")
-        self._write_to_filesystem(self.base_path, self.template)
+        return self._write_to_filesystem(self.base_path, self.template)
 
-    def _write_to_filesystem(self, base_path: str, structure: dict) -> None:
+    def _write_to_filesystem(self, base_path: str, structure: dict) -> bool:
         """
         Recursively write the structure to the file system. Helper method for create_structure.
 
@@ -65,6 +74,8 @@ class StructureWriter:
             base_path (str): The base path to create the directory structure.
             structure (dict): The directory structure template to create.
         
+        Returns:
+            bool: True if the directory structure was created successfully, False otherwise.
         Example:
             Parameters:
                 base_path = '/path/to/base'
@@ -98,20 +109,25 @@ class StructureWriter:
                     └── subdir2
                         └── file6.txt
         """
-        for name, content in structure.items():
-            # Remove trailing slash for the actual path
-            path = os.path.join(base_path, name.rstrip('/'))
+        try:
+            for name, content in structure.items():
+                # Remove trailing slash for the actual path
+                path = os.path.join(base_path, name.rstrip('/'))
 
-            if name.endswith('/'):
-                # It's a directory
-                os.makedirs(path, exist_ok=True)
-                logger.debug(f"Created directory: {path}")
-                # Recursively write the contents of the directory
-                self._write_to_filesystem(path, content)
-            else:
-                # It's a file
-                os.makedirs(os.path.dirname(path), exist_ok=True)
-                with open(path, 'w') as f:
-                    f.write('')  # Create an empty file
-                logger.debug(f"Created file: {path}")
+                if name.endswith('/'):
+                    # It's a directory
+                    os.makedirs(path, exist_ok=True)
+                    logger.debug(f"Created directory: {path}")
+                    # Recursively write the contents of the directory
+                    self._write_to_filesystem(path, content)
+                else:
+                    # It's a file
+                    os.makedirs(os.path.dirname(path), exist_ok=True)
+                    with open(path, 'w') as f:
+                        f.write('')  # Create an empty file
+                    logger.debug(f"Created file: {path}")
+            return True
+        except Exception as e:
+            logger.error(f"Error creating directory structure: {e}")
+            return False
 

@@ -2,6 +2,9 @@
 
 ## [0.1.1] - 2024-11-01
 **No Breaking Changes. Safe to Bump**
+### Directory Writer
+- Updated to add a safety by default to `structure_writer.py`'s function `write_structure`. Prompts user to enter if they wish to continue. This helps to avoid accidently overwriting files/folders if this is not desired.
+
 ### AI Changes
 - Created `FileSummarizer` class to summarize individual files via OpenAI API
 - Updated `DirectorySummarizer` class to include file summarization as part of the process for summarizing directories. Stores file summaries in a `content_summary` key in JSON formatted object during pre-processing -- this is currently overwritten by the Directory Summary which does not consider the file content during `DirectorySummarizer`'s summarization (`DirectorySummarizer` summarize function only considers file name currently for context.)
@@ -14,6 +17,7 @@
 
 ### Style Changes
 - **New Styles**: Added support for `IndentedTreeStyle` (formerly known as `IndentationStyle`) and changed `IndentationStyle` to be same style without the tree characters
+- Updated `write_structure` in `JSONStyle` to follow the expected format of the JSON Template
 
 ### Miscellaneous
 - Updated README with fixes

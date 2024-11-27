@@ -89,5 +89,5 @@ def test_generate_without_gitignore(setup_test_dir, tmpdir):
     assert "│   └── file1.txt" in formatted_structure
     assert "├── .github/" in formatted_structure
     assert "│   └── workflow" in formatted_structure
-    assert "├── .git/" in formatted_structure
-    assert "│   └── config" in formatted_structure
+    assert "└── .git/" in formatted_structure
+    assert "    └── config" in formatted_structure
