@@ -92,7 +92,7 @@ class ListStyle(BaseStyle):
                 current_path = os.path.join(root_dir, item_name.rstrip('/'))
                 parent_paths = [current_path]
                 root_dir = current_path  # Set root_dir to current_path
-                structure.append((current_path + '/' if is_folder else current_path, 0, item_name))
+                structure.append((current_path, 0, item_name))
                 root_processed = True
                 continue
             else:
@@ -109,8 +109,10 @@ class ListStyle(BaseStyle):
                 if is_folder:
                     parent_paths.append(current_path)
 
+                # Compute the relative path to the root directory
+                relative_current_path = os.path.relpath(current_path, start=root_dir)
+
                 # Add the item to the structure
-                structure.append((current_path + '/' if is_folder else current_path, level, item_name))
+                structure.append((relative_current_path, level, item_name))
 
         return structure
-
