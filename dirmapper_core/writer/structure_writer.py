@@ -16,6 +16,7 @@ class StructureWriter:
         self.base_path = os.path.expanduser(base_path) if base_path else None
         self.meta = {}
         self.structure = {}
+        self.template = {}
 
     def create_structure(self, structure: dict):
         """
@@ -33,6 +34,7 @@ class StructureWriter:
         if 'version' not in self.meta or self.meta['version'] != '1.1':
             raise ValueError("Unsupported template version. Supported version is '1.1'.")
         
+        self.base_path = self.meta.get('root_path', self.base_path)
         # Log or use additional meta tags if needed
         author = self.meta.get('author', 'Unknown')
         source = self.meta.get('source', 'Unknown')
@@ -56,7 +58,9 @@ class StructureWriter:
             safety_check (bool): Flag indicating whether to prompt the user before writing to the file system. Defaults to True.
         """
         if not self.base_path:
-            raise ValueError("Base path not set. Cannot write to file system.")
+            raise ValueError("Base path not set. Cannot write to file system. Hint: Initialize the StructureWriter object with a base path or ensure `root_path` is set in the template.")
+        if self.template == {}:
+            raise ValueError("Template not set. Cannot write to file system. Hint: Use create_structure method to set the template.")
         if safety_check:
             logger.warning(f"Safety is enabled. You are about to create directories and files on the file system and may overwrite directories/files of the same name at the `{os.path.abspath(self.base_path)}` path. Please ensure you have the correct permissions.")
             response = input("Do you want to continue? (y/n): ")
@@ -111,23 +115,38 @@ class StructureWriter:
         """
         try:
             for name, content in structure.items():
-                # Remove trailing slash for the actual path
-                path = os.path.join(base_path, name.rstrip('/'))
+                # Skip the special key '__keys__' which is used for metadata
+                print(name)
+                if name == '__keys__':
+                    continue
 
+                # Remove trailing slash for the actual path
+                name_clean = name.rstrip('/')
+
+                # Compute the path relative to base_path
+                if os.path.isabs(name_clean):
+                    # Compute the relative path to self.base_path
+                    name_rel = os.path.relpath(name_clean, start=self.base_path)
+                else:
+                    name_rel = name_clean
+
+                # Construct the full path
+                path = os.path.join(base_path, name_rel)
+
+                # It's a directory
                 if name.endswith('/'):
-                    # It's a directory
                     os.makedirs(path, exist_ok=True)
-                    logger.debug(f"Created directory: {path}")
+                    logger.info(f"Created directory: {path}")
                     # Recursively write the contents of the directory
                     self._write_to_filesystem(path, content)
+                
+                # It's a file    
                 else:
-                    # It's a file
                     os.makedirs(os.path.dirname(path), exist_ok=True)
                     with open(path, 'w') as f:
                         f.write('')  # Create an empty file
-                    logger.debug(f"Created file: {path}")
+                    logger.info(f"Created file: {path}")
             return True
         except Exception as e:
             logger.error(f"Error creating directory structure: {e}")
             return False
-

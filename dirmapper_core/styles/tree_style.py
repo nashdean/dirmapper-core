@@ -55,7 +55,7 @@ class TreeStyle(BaseStyle):
                     continue  # Skip to next item
 
                 # Determine if this is the last item at its level
-                is_last = TreeStyle._is_last_item(structure, i, level)
+                is_last = utils.is_last_item(structure, i, level)
 
                 # Update levels_has_next
                 if len(levels_has_next) < level:
