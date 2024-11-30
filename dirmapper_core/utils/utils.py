@@ -56,3 +56,44 @@ def get_package_version(package_name: str) -> str:
         return version(package_name)
     except PackageNotFoundError:
         return "Unknown version"
+
+def is_last_item(structure, index, current_level):
+    """
+    Determine if the current item is the last one at its level in the structure.
+
+    Args:
+        structure (list): A list of tuples representing the directory structure.
+                        Each tuple contains (item_path, level, item).
+        index (int): The index of the current item in the structure list.
+        current_level (int): The level of the current item in the directory structure.
+
+    Returns:
+        bool: True if the current item is the last one at its level, False otherwise.
+
+    Example:
+        structure = [
+            ('/path/to/dir', 0, 'dir'),
+            ('/path/to/dir/file1.txt', 1, 'file1.txt'),
+            ('/path/to/dir/file2.txt', 1, 'file2.txt'),
+            ('/path/to/dir/subdir', 1, 'subdir'),
+            ('/path/to/dir/subdir/file3.txt', 2, 'file3.txt')
+        ]
+        index = 1
+        current_level = 1
+        is_last_item(structure, index, current_level)  # Returns False
+    """
+    # Check if there is any next item at the same level
+    for next_index in range(index + 1, len(structure)):
+        next_level = structure[next_index][1]
+        if next_level == current_level:
+            return False  # There is another item at the same level
+        elif next_level < current_level:
+            break
+    return True  # No more items at the same level
+
+def is_directory(item):
+    """
+    Determine if the item is a directory.
+    """
+    # Assuming directories are marked with a trailing '/'
+    return item.endswith('/')
