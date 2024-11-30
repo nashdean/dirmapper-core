@@ -1,8 +1,17 @@
+import logging
 import yaml
 import json
 import os
 import re
 import datetime
+
+from dirmapper_core.styles.base_style import BaseStyle
+from dirmapper_core.styles.flat_list_style import FlatListStyle
+from dirmapper_core.styles.indentation_style import IndentationStyle
+from dirmapper_core.styles.indented_tree_style import IndentedTreeStyle
+from dirmapper_core.styles.json_style import JSONStyle
+from dirmapper_core.styles.list_style import ListStyle
+from dirmapper_core.styles.tree_style import TreeStyle
 
 class TemplateParser:
     """
@@ -113,18 +122,7 @@ class TemplateParser:
 
         # Detect style
         style = self._detect_style(lines)
-        if style == 'tree':
-            root_path, template = self._parse_tree_style(lines)
-        elif style == 'list':
-            root_path, template = self._parse_list_style(lines)
-        elif style == 'indented_tree':
-            root_path, template = self._parse_indented_tree_style(lines)
-        elif style == 'indentation':
-            root_path, template = self._parse_indentation_style(lines)
-        elif style == 'flat':
-            root_path, template = self._parse_flat_style(lines)
-        else:
-            raise ValueError("Unsupported directory structure format.")
+        root_path, template = self._parse_style(structure_str, style)
 
         # Wrap the template with metadata
         return {
@@ -147,7 +145,7 @@ class TemplateParser:
             lines (list): The lines of the directory structure string.
 
         Returns:
-            str: The detected style ('tree', 'list', 'indented_tree', 'flat').
+            str: The detected style (TreeStyle, ListStyle, FlatListStyle, IndentedTreeStyle, IndentedStyle).
         """
         for line in lines[1:]:
             line = line.rstrip('\n')
@@ -155,24 +153,24 @@ class TemplateParser:
                 continue
             # Line starts with tree-drawing characters without leading spaces
             if re.search(r'^(├──|└──)', line):
-                return 'tree'
+                return TreeStyle
             # Line starts with spaces followed by tree-drawing characters
             elif re.search(r'^\s+(├──|└──)', line):
-                return 'indented_tree'
+                return IndentedTreeStyle
             # Line contains only words and numbers with varying levels of indentation
             elif re.search(r'^\s+\w+', line):
-                return 'indentation'
+                return IndentationStyle
             # Line starts with '-' followed by a space
             elif re.match(r'^\s*-\s+', line):
-                return 'list'
+                return ListStyle
             # Flat style: lines with paths without special formatting
             elif re.match(r'^\S+', line):
-                return 'flat'
-        return 'unknown'
+                return FlatListStyle
+        raise ValueError("Unsupported directory structure style.")
 
-    def _parse_tree_style(self, lines):
+    def _parse_style(self, lines, style: BaseStyle):
         """
-        Parse the tree style directory structure.
+        Parse a given style directory structure into JSON.
 
         Args:
             lines (list): The lines of the directory structure string.
@@ -181,52 +179,16 @@ class TemplateParser:
             tuple: (root_path, template_dict)
         """
         template = {}
-        stack = []  # Stack of (current_node, indent_level)
-
         root_path = None
 
-        for line in lines:
-            if not line.strip():
-                continue
-
-            # Detect the root path (first line without any indentation or connectors)
-            if root_path is None and not re.match(r'^\s*[├└]', line):
-                root_path = line.strip()
-                continue
-
-            # Replace '│' with '|' to simplify processing
-            line_clean = line.replace('│', '|')
-
-            # Calculate indent level based on leading spaces and '|' characters
-            indent_match = re.match(r'^(\s*[\| ]*)', line_clean)
-            indent_str = indent_match.group(0) if indent_match else ''
-            indent_level = indent_str.count('|')
-
-            # Remove leading indentation and tree mapping characters
-            name = line[len(indent_str):].strip()
-            name = re.sub(r'^[├└][─]{2} ', '', name).strip()
-
-            # Check if it's a directory (ends with '/') or a file
-            is_dir = name.endswith('/')
-
-            # Create a new node
-            new_node = {} if is_dir else {}
-
-            # Adjust the stack based on the current indentation level
-            while stack and stack[-1][1] >= indent_level:
-                stack.pop()
-
-            if stack:
-                parent_node, _ = stack[-1]
-            else:
-                parent_node = template
-
-            parent_node[name] = new_node
-
-            # If it's a directory, push it onto the stack
-            if is_dir:
-                stack.append((new_node, indent_level))
-
+        # try:
+        #TODO: There is a bug here where the relative path is not parsing correctly over to the JSONStyle for files/folders
+        generic_structure = style.parse_from_style(lines)
+        template = JSONStyle.write_structure(generic_structure)
+        root_path = generic_structure[0][0] # Get the root path from the first item in the structure
+        # except Exception as e:
+        #     logging.error(f"Error parsing directory structure from {style.__STR__}: {e}")
+        
         return root_path, template
 
     def _parse_tree_style(self, lines):

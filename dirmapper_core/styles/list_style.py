@@ -48,7 +48,7 @@ class ListStyle(BaseStyle):
             return '\n'.join(result)
         
     @staticmethod
-    def parse_list_structure(list_str: str, root_dir: str = "") -> List[Tuple[str, int, str]]:
+    def parse_from_style(list_str: str, root_dir: str = "") -> List[Tuple[str, int, str]]:
         """
         Parse a list structure string back into a list of tuples representing
         the directory structure.

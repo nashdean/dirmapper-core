@@ -17,7 +17,9 @@
 
 ### Style Changes
 - **New Styles**: Added support for `IndentedTreeStyle` (formerly known as `IndentationStyle`) and changed `IndentationStyle` to be same style without the tree characters
-- Updated `write_structure` in `JSONStyle` to follow the expected format of the JSON Template
+- Updated `write_structure` in `JSONStyle` to follow the expected format of the JSON Template to include special key `__keys__`
+- Updated `JSONStyle` to have `json_to_structure` function to convert JSON back into a list of tuples
+- Made all styles static since they do not carry state
 
 ### Miscellaneous
 - Updated README with fixes

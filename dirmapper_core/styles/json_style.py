@@ -239,4 +239,68 @@ class JSONStyle(BaseStyle):
                 **json_structure
             }
         }
+    
+    @staticmethod
+    def parse_from_style(json_dict: dict) -> List[Tuple[str, int, str]]:
+        """
+        Converts a JSON/dict representation of a directory structure back into a list of tuples.
+        
+        Each tuple contains:
+            - str: The path to the file or directory.
+            - int: The level of indentation in the hierarchy.
+            - str: The name of the file or directory.
+
+        Args:
+            json_dict (Dict): The JSON/dict representation of the directory structure.
+
+        Returns:
+            List[Tuple[str, int, str]]: A list of tuples representing the directory structure.
+        """
+        # Initialize the structure list
+        structure = []
+
+        # Get the root key and its value
+        root_key = next(iter(json_dict))
+        root_value = json_dict[root_key]
+
+        # Root item
+        root_name = root_key.rstrip('/')
+        root_path = root_name  # For root, path is the name itself
+        structure.append((root_path, 0, root_path))
+
+        # Traverse the root_value
+        structure.extend(JSONStyle._traverse_json(root_value, level=1, parent_path=""))
+
+        return structure
+
+    def _traverse_json(node: dict, level: int, parent_path: str) -> List[Tuple[str, int, str]]:
+        """
+        Recursively traverses the JSON/dict structure to build the list of tuples.
+
+        Args:
+            node (Dict): The current node in the JSON/dict structure.
+            level (int): The current level in the directory hierarchy.
+            parent_path (str): The path to the parent directory.
+
+        Returns:
+            List[Tuple[str, int, str]]: A list of tuples representing the directory structure.
+        """
+        structure = []
+
+        for key, value in node.items():
+            if key == '__keys__':
+                continue  # Skip metadata
+            item_name = key.rstrip('/')  # Remove trailing '/' if any
+            current_path = os.path.join(parent_path, item_name)
+            is_dir = key.endswith('/')
+
+            # Add the item to the structure
+            structure.append((current_path, level, item_name))
+
+            if is_dir:
+                # Recurse into the directory
+                structure.extend(JSONStyle._traverse_json(value, level + 1, current_path))
+
+        return structure
+
 

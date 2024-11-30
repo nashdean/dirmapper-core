@@ -86,7 +86,7 @@ class TreeStyle(BaseStyle):
                     formatted_lines.append(line_content)
             return '\n'.join(formatted_lines)
     
-    def parse_tree_structure(tree_str: str, root_dir: str = "") -> List[Tuple[str, int, str]]:
+    def parse_from_style(tree_str: str, root_dir: str = "") -> List[Tuple[str, int, str]]:
         """
         Parse a tree structure string back into a list of tuples representing
         the directory structure.
