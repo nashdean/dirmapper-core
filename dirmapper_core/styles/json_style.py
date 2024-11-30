@@ -228,13 +228,13 @@ class JSONStyle(BaseStyle):
         # Start building the structure at level root_level + 1
         root_path, root_level, root_name = structure[0]
         json_structure, _ = build_json_structure(structure, 1, root_level + 1, root_path, root_path)
-        metadata = get_metadata(root_path, is_dir, root_path)
+        metadata = get_metadata(root_path, True, root_path)
 
         # Include metadata for the root directory and attach its contents
         return {
             root_name + '/': {
                 "__keys__": {
-                    "meta": get_metadata(root_path, is_dir=True, root_path=root_path),
+                    "meta": metadata,
                     "content": {
                         "content_summary": None,
                         "short_summary": None

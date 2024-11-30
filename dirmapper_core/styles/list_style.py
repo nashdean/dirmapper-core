@@ -62,9 +62,18 @@ class ListStyle(BaseStyle):
         """
         lines = list_str.splitlines()
         structure = []
-        parent_paths = []  # Stack to manage parent paths based on levels
+        parent_paths = []
+        root_processed = False
 
+        # Preprocess lines to get levels
+        levels = []
         for line in lines:
+            stripped_line = line.lstrip()
+            indent_length = len(line) - len(stripped_line)
+            level = indent_length // 4  # Each level of indentation is 4 spaces
+            levels.append(level)
+
+        for i, line in enumerate(lines):
             # Determine the level based on indentation
             stripped_line = line.lstrip()
             indent_length = len(line) - len(stripped_line)
@@ -72,23 +81,36 @@ class ListStyle(BaseStyle):
 
             # Remove the '- ' prefix while keeping trailing '/' for directories
             item_name = stripped_line.lstrip('- ')
-            is_folder = item_name.endswith('/')
+            # Assume items with child items are directories
+            if i + 1 < len(lines) and levels[i + 1] > level:
+                is_folder = True
+            else:
+                is_folder = False
 
-            # Build the path
-            if level == 0:
-                # Root item
+            if not root_processed:
+                # Process the first line as the root item
                 current_path = os.path.join(root_dir, item_name.rstrip('/'))
                 parent_paths = [current_path]
+                root_dir = current_path  # Set root_dir to current_path
+                structure.append((current_path + '/' if is_folder else current_path, 0, item_name))
+                root_processed = True
+                continue
             else:
+                # For subsequent lines
+                level += 1  # Adjust level to account for root
                 # Update parent_paths stack
-                if level < len(parent_paths):
-                    parent_paths = parent_paths[:level]
-                current_path = os.path.join(parent_paths[-1], item_name.rstrip('/'))
+                if level <= len(parent_paths):
+                    parent_paths = parent_paths[:level - 1]
+                if parent_paths:
+                    current_path = os.path.join(parent_paths[-1], item_name.rstrip('/'))
+                else:
+                    current_path = os.path.join(root_dir, item_name.rstrip('/'))
+
                 if is_folder:
                     parent_paths.append(current_path)
 
-            # Add the item to the structure, keeping trailing '/' for directories
-            structure.append((current_path + '/' if is_folder else current_path, level, item_name))
+                # Add the item to the structure
+                structure.append((current_path + '/' if is_folder else current_path, level, item_name))
 
         return structure
 
