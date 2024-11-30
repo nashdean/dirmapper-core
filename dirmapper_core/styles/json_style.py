@@ -115,7 +115,7 @@ class JSONStyle(BaseStyle):
                     }
                 }
         """
-        def get_metadata(path: str, is_dir: bool) -> dict:
+        def get_metadata(path: str, is_dir: bool, root_path: str) -> dict:
             """
             Retrieves real metadata for a given file or directory path.
             """
@@ -135,10 +135,13 @@ class JSONStyle(BaseStyle):
                     # Use Unix-specific modules for author and group
                     author = pwd.getpwuid(stats.st_uid).pw_name
                     last_modified_by = grp.getgrgid(stats.st_gid).gr_name
+                
+                # Calculate relative path from the root directory
+                relative_path = os.path.relpath(path, start=root_path)
 
                 return {
                     "type": "folder" if is_dir else "file",
-                    "relative_path": os.path.relpath(path),
+                    "relative_path": relative_path,
                     "creation_date": creation_date,
                     "last_modified": last_modified,
                     "author": author,
@@ -168,7 +171,7 @@ class JSONStyle(BaseStyle):
                     "size": 0
                 }
             
-        def build_json_structure(structure, start_index: int, current_level: int, parent_path: str) -> Tuple[dict, int]:
+        def build_json_structure(structure, start_index: int, current_level: int, parent_path: str, root_path: str) -> Tuple[dict, int]:
             """
             Builds the modified JSON-like structure with real metadata.
             """
@@ -189,11 +192,11 @@ class JSONStyle(BaseStyle):
                 else:
                     is_dir = False
 
-                metadata = get_metadata(full_item_path, is_dir)
+                metadata = get_metadata(full_item_path, is_dir, root_path)
 
                 if is_dir:
                     # Recursively build the sub-structure
-                    sub_structure, new_index = build_json_structure(structure, i + 1, item_level + 1, full_item_path)
+                    sub_structure, new_index = build_json_structure(structure, i + 1, item_level + 1, full_item_path, root_path)
                     # Append '/' to directory names for consistency
                     folder_key = item_name + '/'
                     result[folder_key] = {
@@ -224,13 +227,14 @@ class JSONStyle(BaseStyle):
         
         # Start building the structure at level root_level + 1
         root_path, root_level, root_name = structure[0]
-        json_structure, _ = build_json_structure(structure, 1, root_level + 1, root_path)
+        json_structure, _ = build_json_structure(structure, 1, root_level + 1, root_path, root_path)
+        metadata = get_metadata(root_path, is_dir, root_path)
 
         # Include metadata for the root directory and attach its contents
         return {
             root_name + '/': {
                 "__keys__": {
-                    "meta": get_metadata(root_path, is_dir=True),
+                    "meta": get_metadata(root_path, is_dir=True, root_path=root_path),
                     "content": {
                         "content_summary": None,
                         "short_summary": None
