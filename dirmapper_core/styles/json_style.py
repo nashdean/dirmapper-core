@@ -13,6 +13,7 @@ class JSONStyle(BaseStyle):
     """
     JSONStyle is a concrete class that inherits from the BaseStyle class. It provides an implementation for the write_structure method that converts a directory structure into a JSON representation.
     """
+    #TODO: Update this to accept kwarg generate_content to generate file content based on the file name and context of the directory and intended project.
     @staticmethod
     def write_structure(structure: List[Tuple[str, int, str]], **kwargs) -> dict:
         """

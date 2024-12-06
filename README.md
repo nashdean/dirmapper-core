@@ -72,6 +72,7 @@ Generating a directory structure results in a formatted string depending on your
 │       │   └── helper.py
 │       └── main.py
 ```
+See the [styles](dirmapper_core/styles) folder for all valid style examples.
 
 ### Creating Directory Structure from Template
 You can create a directory structure from a template using the `StructureWriter` class. Here is an example:
@@ -85,7 +86,7 @@ base_path = 'Path/To/Your/Project'
 structure_template = {
     "meta": {
         "version": "1.1",
-        "tool": "dirmapper",
+        "source": "dirmapper",
         "author": "root",
         "root_path": base_path,
         "creation_date": "2024-11-01T20:06:14.510200",
@@ -135,7 +136,7 @@ template_path = 'path/to/your/template.json'
 structure_template = {
     "meta": {
         "version": "1.1",
-        "tool": "dirmapper",
+        "source": "dirmapper",
         "author": "root",
         "root_path": template_path,
         "creation_date": "2024-11-01T20:06:14.510200",

@@ -31,8 +31,8 @@ class StructureWriter:
         self.meta = structure['meta']
         self.template = structure['template']
 
-        if 'version' not in self.meta or self.meta['version'] != '1.1':
-            raise ValueError("Unsupported template version. Supported version is '1.1'.")
+        if 'version' not in self.meta or self.meta['version'] != '2.0':
+            raise ValueError("Unsupported template version. Supported version is '2.0'.")
         
         self.base_path = self.meta.get('root_path', self.base_path)
         # Log or use additional meta tags if needed
@@ -116,7 +116,6 @@ class StructureWriter:
         try:
             for name, content in structure.items():
                 # Skip the special key '__keys__' which is used for metadata
-                print(name)
                 if name == '__keys__':
                     continue
 
@@ -136,7 +135,7 @@ class StructureWriter:
                 # It's a directory
                 if name.endswith('/'):
                     os.makedirs(path, exist_ok=True)
-                    logger.info(f"Created directory: {path}")
+                    logger.debug(f"Created directory: {path}")
                     # Recursively write the contents of the directory
                     self._write_to_filesystem(path, content)
                 
@@ -145,7 +144,7 @@ class StructureWriter:
                     os.makedirs(os.path.dirname(path), exist_ok=True)
                     with open(path, 'w') as f:
                         f.write('')  # Create an empty file
-                    logger.info(f"Created file: {path}")
+                    logger.debug(f"Created file: {path}")
             return True
         except Exception as e:
             logger.error(f"Error creating directory structure: {e}")

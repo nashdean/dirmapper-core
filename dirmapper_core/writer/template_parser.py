@@ -1,4 +1,3 @@
-import logging
 import yaml
 import json
 import os
@@ -12,10 +11,11 @@ from dirmapper_core.styles.indented_tree_style import IndentedTreeStyle
 from dirmapper_core.styles.json_style import JSONStyle
 from dirmapper_core.styles.list_style import ListStyle
 from dirmapper_core.styles.tree_style import TreeStyle
+from dirmapper_core.utils.logger import logger
 
 class TemplateParser:
     """
-    Class to parse template files in YAML or JSON format or a formatted directory structure string into a dict object.
+    Class to parse template files in YAML or JSON format or a formatted directory structure string into a dict object (template).
     """
     def __init__(self, template_file: str=None):
         """
@@ -40,18 +40,44 @@ class TemplateParser:
             Result:
                 {
                     "meta": {
-                        "version": "1.1",
-                        "tool": "dirmapper",
+                        "version": "2.0",
+                        "source": "dirmapper",
                         "author": "user",
+                        "last_modified_by": "user",
+                        "description": "No description provided",
+                        "root_path": "/path/to/root",
                         "creation_date": "2021-09-01T12:00:00",
                         "last_modified": "2021-09-01T12:00:00"
                     },
                     "template": {
                         "dir1/": {
-                            "file1.txt": {},
-                            "file2.txt": {},
+                            "__keys__""{
+                                "meta": {...},
+                                "content": {...}
+                            },
+                            "file1.txt": {
+                                "__keys__""{
+                                    "meta": {...},
+                                    "content": {...}
+                                }
+                            },
+                            "file2.txt": {
+                                "__keys__""{
+                                    "meta": {...},
+                                    "content": {...}
+                                }
+                            },
                             "subdir1/": {
-                                "file3.txt": {}
+                                "__keys__""{
+                                    "meta": {...},
+                                    "content": {...}
+                                },
+                                "file3.txt": {
+                                    "__keys__""{
+                                        "meta": {...},
+                                        "content": {...}
+                                    }
+                                }
                             }
                         }
                     }
@@ -65,54 +91,113 @@ class TemplateParser:
                 template = json.load(f)
             else:
                 raise ValueError("Unsupported template file format. Please use YAML or JSON.")
-
+        
         # Add author, creation_date, and last_modified to meta if not present
         if 'meta' not in template:
             template['meta'] = {}
         if 'author' not in template['meta']:
             template['meta']['author'] = os.getlogin()
-        if 'tool' not in template['meta']:
-            template['meta']['tool'] = 'dirmapper'
+        if 'source' not in template['meta']:
+            template['meta']['source'] = 'dirmapper'
         if 'creation_date' not in template['meta']:
             template['meta']['creation_date'] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         if 'last_modified' not in template['meta']:
             template['meta']['last_modified'] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
+        # Validate the template
+        self.validate_template(template)
+        
         return template
-    
-    def parse_from_directory_structure(self, structure_str: str) -> dict:
+
+    def validate_template(self, template: dict) -> None:
         """
-        Parse the directory structure string and return it as a dictionary.
+        Validate the parsed template to ensure it meets the expected format.
+
+        Args:
+            template (dict): The parsed template to validate.
+
+        Raises:
+            ValueError: If the template is invalid.
+        """
+        if 'meta' not in template:
+            raise ValueError("Template is missing 'meta' section.")
+        if 'template' not in template:
+            raise ValueError("Template is missing 'template' section.")
+        
+        meta = template['meta']
+        if 'version' not in meta:
+            raise ValueError("Template 'meta' section is missing 'version'.")
+        if meta['version'] != '2.0':
+            raise ValueError("Unsupported template version. Supported version is '1.1'.")
+        
+        # Additional meta validations if needed
+        required_meta_fields = ['author', 'tool', 'creation_date', 'last_modified']
+        for field in required_meta_fields:
+            if field not in meta:
+                raise ValueError(f"Template 'meta' section is missing '{field}'.")
+
+        # Validate the structure of the template section
+        def validate_structure(structure):
+            if not isinstance(structure, dict):
+                raise ValueError("Template 'template' section must be a dictionary.")
+            for key, value in structure.items():
+                if key.endswith('/'):
+                    if not isinstance(value, dict):
+                        raise ValueError(f"Directory '{key}' must contain a dictionary of its contents.")
+                    validate_structure(value)
+                else:
+                    if not isinstance(value, dict):
+                        raise ValueError(f"File '{key}' must be a dictionary with '__keys__' section.")
+                    if '__keys__' not in value:
+                        raise ValueError(f"File '{key}' must contain '__keys__' section.")
+
+        validate_structure(template['template'])
+    
+    def parse_from_directory_structure(self, structure_str: str, existing_content:bool=False, generate_content:bool=False) -> dict:
+        """
+        Parse the styled directory structure string and return it as a dictionary.
 
         Args:
             structure_str (str): The directory structure string to parse.
+            existing_content (bool): Whether to include existing content in the template. Only applicable if root path in directory structure is an existing directory and files/folders already exist.
+            generate_content (bool): Whether to generate content for files in the template. Used to generate content for files in the template with OpenAI's GPT-4.
 
         Returns:
             dict: The parsed directory structure as a dictionary in a structured reusable template.
 
         Example:
-            structure_str = 
-                dir1/
-                ├── file1.txt
-                ├── file2.txt
-                └── subdir1/
-                    └── file3.txt
+            structure_str =
+                path/to/root 
+                └── dir1/
+                    ├── file1.txt
+                    ├── file2.txt
+                    └── subdir1/
+                        └── file3.txt
 
             parsed_structure =
             {
                 "meta": {
                     "version": "1.1",
-                    "tool": "dirmapper",
+                    "source": "dirmapper",
+                    "license": "No license specified",
+                    "root_path": "path/to/root",
                     "author": "user",
+                    "last_modified_by": "user",
+                    "description": "No description provided",
                     "creation_date": "2021-09-01T12:00:00",
                     "last_modified": "2021-09-01T12:00:00"
                 },
                 "template": {
-                    "dir1/": {
-                        "file1.txt": {},
-                        "file2.txt": {},
-                        "subdir1/": {
-                            "file3.txt": {}
+                    "path/to/root/": {
+                        "__keys__": {"meta": {...}, "content": {...}},
+                        "dir1/": {
+                            "__keys__": {"meta": {...}, "content": {...}},
+                            "file1.txt": {"__keys__": {"meta": {...}, "content": {...}}},
+                            "file2.txt": {"__keys__": {"meta": {...}, "content": {...}}},
+                            "subdir1/": {
+                                "__keys__": {"meta": {...}, "content": {...}},
+                                "file3.txt": {"__keys__": {"meta": {...}, "content": {...}}}
+                            }
                         }
                     }
                 }
@@ -122,14 +207,17 @@ class TemplateParser:
 
         # Detect style
         style = self._detect_style(lines)
-        root_path, template = self._parse_style(structure_str, style)
+        root_path, template = self._parse_style(structure_str, style, existing_content, generate_content)
 
         # Wrap the template with metadata
         return {
             "meta": {
-                "version": "1.1",
-                "tool": "dirmapper",
+                "version": "2.0",
+                "source": "dirmapper",
+                "license": "No license specified",
                 "author": os.getlogin(),
+                "last_modified_by": os.getlogin(),
+                "description": "No description provided",
                 "root_path": root_path,
                 "creation_date": datetime.datetime.now().isoformat(),
                 "last_modified": datetime.datetime.now().isoformat()
@@ -168,309 +256,27 @@ class TemplateParser:
                 return FlatListStyle
         raise ValueError("Unsupported directory structure style.")
 
-    def _parse_style(self, lines, style: BaseStyle):
+    def _parse_style(self, lines, style: BaseStyle, existing_content:bool, generate_content:bool) -> tuple:
         """
         Parse a given style directory structure into JSON.
 
         Args:
             lines (list): The lines of the directory structure string.
+            style (BaseStyle): The style of the directory structure.
+            existing_content (bool): Whether to include existing content in the template. Only applicable if root path in directory structure is an existing directory and files/folders already exist.
+            generate_content (bool): Whether to generate content for files in the template. Used to generate content for files in the template with OpenAI's GPT-4.
 
         Returns:
-            tuple: (root_path, template_dict)
+            tuple: (root_path_str, template_dict)
         """
         template = {}
         root_path = None
 
-        # try:
-        #TODO: There is a bug here where the relative path is not parsing correctly over to the JSONStyle for files/folders
-        generic_structure = style.parse_from_style(lines)
-        template = JSONStyle.write_structure(generic_structure)
-        root_path = generic_structure[0][0] # Get the root path from the first item in the structure
-        # except Exception as e:
-        #     logging.error(f"Error parsing directory structure from {style.__STR__}: {e}")
+        try:
+            generic_structure = style.parse_from_style(lines)
+            template = JSONStyle.write_structure(generic_structure, generate_content=generate_content)
+            root_path = generic_structure[0][0] # Get the root path from the first item in the structure
+        except Exception as e:
+            logger.error(f"Error parsing directory structure from {style.__STR__}: {e}")
         
-        return root_path, template
-
-    def _parse_tree_style(self, lines):
-        """
-        Parse the tree style directory structure.
-        """
-        template = {}
-        stack = []  # Stack of (parent_node, depth)
-
-        root_path = None
-
-        for line in lines:
-            if not line.strip():
-                continue
-
-            # Detect the root path (first line without any indentation or connectors)
-            if root_path is None and not re.match(r'^\s*[├└│]', line):
-                root_path = line.strip()
-                continue
-
-            # Get depth and name
-            depth, name = self._get_depth_and_name(line)
-
-            # Adjust the stack based on the current depth
-            while len(stack) > depth:
-                stack.pop()
-
-            # Create a new node
-            is_dir = name.endswith('/')
-            new_node = {} if is_dir else {}
-
-            if depth == 0:
-                # At root level
-                template[name] = new_node
-                if is_dir:
-                    stack.append((template[name], depth))
-            else:
-                if stack:
-                    parent_node = stack[-1][0]
-                    parent_node[name] = new_node
-                    if is_dir:
-                        stack.append((parent_node[name], depth))
-                else:
-                    # Should not happen, but just in case
-                    template[name] = new_node
-                    if is_dir:
-                        stack.append((template[name], depth))
-
-        return root_path, template
-
-    def _get_depth_and_name(self, line):
-        """
-        Extract the depth and name from a line in the tree structure.
-        """
-        pattern = r'^(?P<indent>(?:    |│   )*)(?:[├└][─]{2} )?(?P<name>.*)'
-        match = re.match(pattern, line)
-        if match:
-            indent = match.group('indent')
-            name = match.group('name').strip()
-            # Calculate depth
-            depth = 0
-            index = 0
-            while index < len(indent):
-                chunk = indent[index:index+4]
-                if chunk in ('    ', '│   '):
-                    depth +=1
-                    index +=4
-                else:
-                    break
-            return depth, name
-        else:
-            # Line does not match expected pattern
-            return 0, line.strip()
-    
-    def _parse_indented_tree_style(self, lines):
-        """
-        Parse the indented tree style directory structure.
-
-        Args:
-            lines (list): The lines of the directory structure string.
-
-        Returns:
-            tuple: (root_path, template_dict)
-        """
-        template = {}
-        stack = []  # Stack of (parent_node, depth)
-        root_path = None
-
-        for line in lines:
-            if not line.strip():
-                continue
-
-            # Detect the root path (first line without indentation)
-            if root_path is None and not line.startswith((' ', '\t')):
-                root_path = line.strip()
-                continue
-
-            # Get depth and name
-            depth, name = self._get_indented_depth_and_name(line)
-
-            # Determine if it's a directory (ends with '/')
-            is_dir = name.endswith('/')
-
-            # Create a new node
-            new_node = {} if is_dir else {}
-
-            # Adjust the stack based on the current depth
-            while len(stack) and stack[-1][1] >= depth:
-                stack.pop()
-
-            if stack:
-                parent_node = stack[-1][0]
-                parent_node[name] = new_node
-            else:
-                template[name] = new_node
-
-            if is_dir:
-                stack.append((new_node, depth))
-
-        return root_path, template
-
-    def _get_indented_depth_and_name(self, line):
-        """
-        Extract the depth and name from a line in the indented tree structure.
-
-        Args:
-            line (str): A line from the directory structure string.
-
-        Returns:
-            tuple: (depth, name)
-        """
-        # Replace tabs with 4 spaces
-        line = line.replace('\t', '    ')
-
-        # Count the number of leading spaces
-        leading_spaces = len(line) - len(line.lstrip(' '))
-
-        # Calculate depth (assuming 4 spaces per indent level)
-        depth = leading_spaces // 4
-
-        # Remove leading spaces
-        line = line.lstrip(' ')
-
-        # Remove any tree-drawing characters and spaces at the beginning
-        line = re.sub(r'^[│├└─\s]+', '', line)
-
-        name = line.strip()
-
-        return depth, name
-
-    def _parse_indentation_style(self, lines):
-        """
-        Parse the indentation style directory structure.
-        """
-        template = {}
-        stack = []
-        root_path = None
-
-        for line in lines:
-            if not line.strip():
-                continue
-
-            # Detect the root path (first line without indentation)
-            if root_path is None and not line.startswith((' ', '\t')):
-                root_path = line.strip()
-                continue
-
-            # Compute depth
-            leading_spaces = len(line) - len(line.lstrip(' '))
-            depth = leading_spaces // 4
-
-            # Get name
-            name = line.strip()
-
-            if not name:
-                continue  # Skip empty names
-
-            # Adjust the stack based on the current depth
-            while len(stack) > depth:
-                stack.pop()
-
-            new_node = {}
-
-            if len(stack) == 0:
-                # At root level
-                template[name] = new_node
-                stack.append((template[name], depth))
-            else:
-                parent_node = stack[-1][0]
-                parent_node[name] = new_node
-                stack.append((parent_node[name], depth))
-
-        return root_path, template
-
-    def _parse_list_style(self, lines):
-        """
-        Parse the list style directory structure.
-
-        Args:
-            lines (list): The lines of the directory structure string.
-
-        Returns:
-            tuple: (root_path, template_dict)
-        """
-        template = {}
-        stack = []  # Stack of (parent_node, depth)
-        root_path = None
-
-        for line in lines:
-            if not line.strip():
-                continue
-            
-            # Detect the root path (first line without indentation)
-            if root_path is None and not line.startswith((' ', '\t')):
-                root_path = line.strip()
-                continue
-
-            # Match lines that start with optional spaces, a dash, and a space
-            match = re.match(r'^(?P<indent>\s*)-\s+(?P<name>.*)', line)
-            if not match:
-                continue  # Skip lines that don't match
-
-            indent_str = match.group('indent')
-            name = match.group('name').strip()
-
-            depth = len(indent_str) // 4  # Assuming 4 spaces per indent
-
-            # Adjust the stack based on the current depth
-            while len(stack) > depth:
-                stack.pop()
-
-            # Create a new node
-            new_node = {}
-
-            if stack:
-                parent_node = stack[-1][0]
-                parent_node[name] = new_node
-            else:
-                template[name] = new_node
-
-            # Push the new node and its depth onto the stack
-            stack.append((new_node, depth))
-
-        return root_path, template
-
-    def _parse_flat_style(self, lines):
-        """
-        Parse the flat style directory structure.
-
-        Args:
-            lines (list): The lines of the directory structure string.
-
-        Returns:
-            tuple: (root_path, template_dict)
-        """
-        template = {}
-        root_path = None
-
-        # Check if the first line is an absolute path
-        if lines and lines[0].startswith('/'):
-            root_path = lines[0].strip()
-            lines = lines[1:]  # Remove the root path from the lines
-        else:
-            root_path = '/'
-
-        for line in lines:
-            if not line.strip():
-                continue
-
-            path = line.strip()
-            parts = path.strip('/').split('/')
-
-            if not parts:
-                continue
-
-            current_node = template
-            for i, part in enumerate(parts):
-                is_dir = (i < len(parts) - 1) or path.endswith('/')
-                part_name = part + '/' if is_dir else part
-
-                if part_name not in current_node:
-                    current_node[part_name] = {}
-                current_node = current_node[part_name]
-
         return root_path, template

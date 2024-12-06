@@ -8,7 +8,18 @@ from typing import Type, TYPE_CHECKING
 if TYPE_CHECKING:
     from dirmapper_core.ignore.path_ignorer import PathIgnorer
 
-def setup_logger(name, level="INFO", verbose:bool = False):
+def setup_logger(name: str, level: str = "INFO", verbose: bool = False) -> logging.Logger:
+    """
+    Setup a logger with the specified name and level.
+
+    Args:
+        name (str): The name of the logger.
+        level (str): The logging level (e.g., "DEBUG", "INFO").
+        verbose (bool): Whether to use a verbose logging format.
+
+    Returns:
+        logging.Logger: The configured logger.
+    """
     logger = logging.getLogger(name)
     logger.setLevel(level)
 
@@ -31,6 +42,7 @@ def setup_logger(name, level="INFO", verbose:bool = False):
 
     return logger
 
+# Initialize the logger with default settings
 logger = setup_logger(__name__)
 
 def log_exception(file_name:str, exc: Exception, stacktrace: bool = False) -> None:

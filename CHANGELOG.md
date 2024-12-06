@@ -1,9 +1,10 @@
 # Changelog
 
-## [0.1.1] - 2024-11-01
+## [0.2.0] - 2024-11-01
 **No Breaking Changes. Safe to Bump**
 ### Directory Writer
 - Updated to add a safety by default to `structure_writer.py`'s function `write_structure`. Prompts user to enter if they wish to continue. This helps to avoid accidently overwriting files/folders if this is not desired.
+- Updated the `write_structure` to skip the key `__keys__` in the templates
 
 ### AI Changes
 - Created `FileSummarizer` class to summarize individual files via OpenAI API
