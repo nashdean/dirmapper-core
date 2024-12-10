@@ -206,9 +206,20 @@ class TemplateParser:
 
         # Detect style
         style = self._detect_style(lines)
-        root_path, template = self._parse_style(structure_str, style, existing_content, generate_content)
+        generic_structure = style.parse_from_style(structure_str)
+        # generic_structure is now a DirectoryStructure object with absolute paths
 
-        # Wrap the template with metadata
+        # Convert the DirectoryStructure into a template dict using JSONStyle
+        # include_content=existing_content will cause JSONStyle to attempt to load content from files if they exist
+        # generate_content=generate_content will cause JSONStyle to generate content via OpenAI if files don't exist
+        template_json = JSONStyle.write_structure(
+            generic_structure,
+            root_dir=generic_structure.to_list()[0].path,  # The root path
+            include_content=existing_content,
+            generate_content=generate_content
+        )
+
+        # Wrap the template_dict with the required meta
         return {
             "meta": {
                 "version": "2.0",
@@ -217,11 +228,11 @@ class TemplateParser:
                 "author": os.getlogin(),
                 "last_modified_by": os.getlogin(),
                 "description": "No description provided",
-                "root_path": root_path,
+                "root_path": generic_structure.to_list()[0].path,
                 "creation_date": datetime.datetime.now().isoformat(),
                 "last_modified": datetime.datetime.now().isoformat()
             },
-            "template": template
+            "template": template_json
         }
 
     def _detect_style(self, lines):

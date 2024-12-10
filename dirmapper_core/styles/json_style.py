@@ -6,6 +6,9 @@ from dirmapper_core.models.directory_item import DirectoryItem
 from dirmapper_core.models.directory_structure import DirectoryStructure
 from dirmapper_core.styles.base_style import BaseStyle
 
+from dirmapper_core.ai.content_generator import generate_file_content as ai_generate_file_content
+
+
 # Import Unix-specific modules only on Unix systems
 if platform.system() != "Windows":
     import pwd
@@ -19,244 +22,151 @@ class JSONStyle(BaseStyle):
     @staticmethod
     def write_structure(structure: DirectoryStructure, **kwargs) -> dict:
         """
-        Converts a list of tuples representing a directory structure into a JSON-like representation. 
-        Each file or directory includes a "__keys__" field containing metadata (e.g., type, size, 
-        creation date, last modified date, author, and last modified by) and placeholders for content summaries.
-
-        The function handles cross-platform compatibility (Windows and Unix) and gracefully manages permission 
-        errors or missing files.
+        Converts a DirectoryStructure object into a JSON-like representation.
+        Each file or directory includes a "__keys__" field containing metadata and placeholders for content.
 
         Args:
-            - structure (DirectoryStructure): The directory structure to convert to JSON.
-        
+            structure (DirectoryStructure): The directory structure to convert.
+            **kwargs:
+                root_dir (str): The root directory path (optional, if not provided uses the first item's path).
+                include_content (bool): If True, attempt to load file content from the file system.
+                generate_content (bool): If True, attempt to generate file content via OpenAI if no existing content is found.
+
         Returns:
-            - dict: A JSON representation of the directory structure with metadata.
-
-        Example:
-            Input structure:
-                DirectoryStructure([DirectoryItem('/path/to/dir', 0, 'dir'),
-                                    DirectoryItem('/path/to/dir/file1.txt', 1, 'file1.txt'),
-                                    DirectoryItem('/path/to/dir/subdir', 1, 'subdir'),
-                                    DirectoryItem('/path/to/dir/subdir/file2.txt', 2, 'file2.txt')])
-
-            Output structure:
-                {
-                    '/path/to/dir': {
-                        '__keys__': {
-                            'meta': {
-                                'type': 'folder',
-                                'relative_path': 'dir',
-                                'creation_date': '2024-11-26T21:30:00.000000',
-                                'last_modified': '2024-11-26T21:35:00.000000',
-                                'author': 'user',
-                                'last_modified_by': 'developers',
-                                'size': 0
-                            },
-                            'content': {
-                                'content_summary': None,
-                                'short_summary': 'None
-                            }
-                        },
-                        'file1.txt': {
-                            '__keys__': {
-                                'meta': {
-                                    'type': 'file',
-                                    'relative_path': 'file1.txt',
-                                    'creation_date': '2024-11-26T21:30:00.000000',
-                                    'last_modified': '2024-11-26T21:35:00.000000',
-                                    'author': 'user',
-                                    'last_modified_by': 'developers',
-                                    'size': 1024
-                                },
-                                'content': {
-                                    'file_content': None,
-                                    'content_summary': None,
-                                    'short_summary': None
-                                }
-                            }
-                        },
-                        'subdir/': {
-                            '__keys__': {
-                                'meta': {
-                                    'type': 'folder',
-                                    'relative_path': 'subdir',
-                                    'creation_date': '2024-11-26T21:30:00.000000',
-                                    'last_modified': '2024-11-26T21:35:00.000000',
-                                    'author': 'user',
-                                    'last_modified_by': 'developers',
-                                    'size': 0
-                                },
-                                'content': {
-                                    'content_summary': None,
-                                    'short_summary': None
-                                }
-                            },
-                            'file2.txt': {
-                                '__keys__': {
-                                    'meta': {
-                                        'type': 'file',
-                                        'relative_path': 'subdir/file2.txt',
-                                        'creation_date': '2024-11-26T21:30:00.000000',
-                                        'last_modified': '2024-11-26T21:35:00.000000',
-                                        'author': 'user',
-                                        'last_modified_by': 'developers',
-                                        'size': 2048
-                                    },
-                                    'content': {
-                                        'file_content': None,
-                                        'content_summary': None,
-                                        'short_summary': None
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
+            dict: A JSON representation of the directory structure with metadata.
         """
-        def get_metadata(path: str, is_dir: bool, root_path: str) -> dict:
-            """
-            Retrieves real metadata for a given file or directory path.
-            """
-            try:
-                stats = os.stat(path)
+        root_dir = kwargs.get('root_dir')
+        include_content = kwargs.get('include_content', False)
+        generate_content = kwargs.get('generate_content', False)
 
-                # Metadata values
-                creation_date = datetime.fromtimestamp(stats.st_ctime).isoformat()
-                last_modified = datetime.fromtimestamp(stats.st_mtime).isoformat()
-                size = stats.st_size if not is_dir else 0  # Size for files only
+        items = structure.to_list()
+        if not items:
+            return {}
 
-                # Cross-platform handling for author and last modified by
-                if platform.system() == "Windows":
-                    author = os.getlogin()  # Fallback to current user on Windows
-                    last_modified_by = "unknown"  # Group info not available on Windows
-                else:
-                    # Use Unix-specific modules for author and group
-                    author = pwd.getpwuid(stats.st_uid).pw_name
-                    last_modified_by = grp.getgrgid(stats.st_gid).gr_name
-                
-                # Calculate relative path from the root directory
-                relative_path = os.path.relpath(path, start=root_path)
+        # The first item should be the root directory
+        root_item = items[0]
+        if root_item.level != 0:
+            raise ValueError("The first item in the structure must be the root directory with level 0.")
+        if not root_dir:
+            root_dir = root_item.path
 
-                return {
-                    "type": "folder" if is_dir else "file",
-                    "relative_path": relative_path,
-                    "creation_date": creation_date,
-                    "last_modified": last_modified,
-                    "author": author,
-                    "last_modified_by": last_modified_by,
-                    "size": size
-                }
-            except PermissionError:
-                # Handle lack of permissions gracefully
-                return {
-                    "type": "folder" if is_dir else "file",
-                    "relative_path": os.path.relpath(path),
-                    "creation_date": "permission_denied",
-                    "last_modified": "permission_denied",
-                    "author": "permission_denied",
-                    "last_modified_by": "permission_denied",
-                    "size": 0
-                }
-            except FileNotFoundError:
-                # Handle case where file/directory doesn't exist
-                return {
-                    "type": "folder" if is_dir else "file",
-                    "relative_path": os.path.relpath(path),
-                    "creation_date": "unknown",
-                    "last_modified": "unknown",
-                    "author": "unknown",
-                    "last_modified_by": "unknown",
-                    "size": 0
-                }
-            
-        def build_json_structure(structure: DirectoryStructure | list, start_index: int, current_level: int, parent_path: str, root_path: str, show_keys: bool=True) -> Tuple[dict, int]:
-            """
-            Builds the modified JSON-like structure with real metadata.
-            """
-            result = {}
-            i = start_index
-            if isinstance(structure, DirectoryStructure):
-                structure = structure.items
-            while i < len(structure):
-                current_item = structure[i]
-                _, item_level, item_name, _ = current_item.to_tuple()
-                if item_level < current_level:
-                    # We've moved back to a higher level; return to the previous call
-                    break
+        # Build a set of directories for quick lookup
+        dir_set = {item.path for item in items if os.path.isdir(item.path)}
 
-                # Construct the full path to the item
-                full_item_path = os.path.join(parent_path, item_name)
+        # Build the nested dict
+        nested_dict = {}
 
-                # Get the next item to determine if the current item is a directory
-                next_item = structure[i + 1] if i + 1 < len(structure) else DirectoryItem("", -1, "", None)
+        for item in items:
+            is_dir = os.path.isdir(item.path)
+            metadata = JSONStyle.get_metadata(item.path, is_dir, root_dir)
 
-                # Determine if item is a directory based on the next item's level
-                if (i + 1) < len(structure) and next_item.level > item_level:
-                    is_dir = True
-                else:
-                    is_dir = False
+            # Compute relative path from root
+            relative_path = os.path.relpath(item.path, start=root_dir)
+            parts = relative_path.split(os.sep)
 
-                metadata = get_metadata(full_item_path, is_dir, root_path)
-
-                if is_dir:
-                    # Recursively build the sub-structure
-                    sub_structure, new_index = build_json_structure(structure, i + 1, item_level + 1, full_item_path, root_path, show_keys)
-                    # Append '/' to directory names for consistency
-                    folder_key = item_name + '/'
-
-                    if show_keys:
-                        result[folder_key] = {
-                            "__keys__": {
-                                "meta": metadata,
-                                "content": {
-                                    "content_summary": current_item.metadata.get("summary"),
-                                    "short_summary": current_item.metadata.get("short_summary")
-                                }
-                            },
-                            **sub_structure
+            # Navigate or create intermediate directories in nested_dict
+            current = nested_dict
+            for part in parts[:-1]:
+                # Intermediate parts are always directories, add a trailing '/' to indicate directory
+                dir_key = part + '/'
+                if dir_key not in current:
+                    # Create a placeholder for intermediate directories without __keys__
+                    current[dir_key] = {"__keys__": {
+                        "meta": JSONStyle.get_metadata(os.path.join(root_dir, *parts[:parts.index(part)+1]), True, root_dir),
+                        "content": {
+                            "content_summary": None,
+                            "short_summary": None
                         }
-                    else:
-                        result[folder_key] = sub_structure
-                    i = new_index  # Update index to the position returned by recursion
-                else:
-                    if show_keys:
-                        result[item_name] = {
-                            "__keys__": {
-                                "meta": metadata,
-                                "content": {
-                                    "file_content": current_item.metadata.get("content"),
-                                    "content_summary": current_item.metadata.get("summary"),
-                                    "short_summary": current_item.metadata.get("short_summary")
-                                }
-                            }
+                    }}
+                current = current[dir_key]
+
+            # Handle the last part
+            last_part = parts[-1]
+            if is_dir:
+                folder_key = last_part + '/'
+                current[folder_key] = {
+                    "__keys__": {
+                        "meta": metadata,
+                        "content": {
+                            "content_summary": item.metadata.get("summary"),
+                            "short_summary": item.metadata.get("short_summary")
                         }
-                    else:
-                        result[item_name] = None
-                    i += 1  # Move to the next item
-
-            return result, i
-        
-        # Start building the structure at level root_level + 1
-        root_path, root_level, root_name, root_metadata = structure.items[0].to_tuple()  # Get the root directory from first DirectoryItem
-        json_structure, _ = build_json_structure(structure, 1, root_level + 1, root_path, root_path, kwargs.get("show_keys", True))
-        metadata = get_metadata(root_path, True, root_path)
-
-        if not kwargs.get("show_keys", True):
-            return {root_name + '/': json_structure}
-        
-        # Include metadata for the root directory and attach its contents
-        return {
-            root_name + '/': {
-                "__keys__": {
-                    "meta": metadata,
-                    "content": {
-                        "content_summary": root_metadata.get("summary"),
-                        "short_summary": root_metadata.get("short_summary")
                     }
-                },
-                **json_structure
+                }
+            else:
+                # It's a file
+                content = None
+                if include_content:
+                    content = item.content  # Triggers lazy loading
+                    if content is None and generate_content:
+                        content = JSONStyle.generate_file_content(item.path, items, root_dir)
+
+                current[last_part] = {
+                    "__keys__": {
+                        "meta": metadata,
+                        "content": {
+                            "file_content": content,
+                            "content_summary": item.metadata.get("summary"),
+                            "short_summary": item.metadata.get("short_summary")
+                        }
+                    }
+                }
+
+        return nested_dict
+    
+    def get_metadata(path: str, is_dir: bool, root_path: str) -> dict:
+        """
+        Retrieves real metadata for a given file or directory path.
+        """
+        try:
+            stats = os.stat(path)
+
+            # Metadata values
+            creation_date = datetime.fromtimestamp(stats.st_ctime).isoformat()
+            last_modified = datetime.fromtimestamp(stats.st_mtime).isoformat()
+            size = stats.st_size if not is_dir else 0  # Size for files only
+
+            # Cross-platform handling for author and last modified by
+            if platform.system() == "Windows":
+                author = os.getlogin()  # Fallback to current user on Windows
+                last_modified_by = "unknown"  # Group info not available on Windows
+            else:
+                # Use Unix-specific modules for author and group
+                author = pwd.getpwuid(stats.st_uid).pw_name
+                last_modified_by = grp.getgrgid(stats.st_gid).gr_name
+
+            # Calculate relative path from the root directory
+            relative_path = os.path.relpath(path, start=root_path)
+
+            return {
+                "type": "folder" if is_dir else "file",
+                "relative_path": relative_path,
+                "creation_date": creation_date,
+                "last_modified": last_modified,
+                "author": author,
+                "last_modified_by": last_modified_by,
+                "size": size
             }
-        }
+        except PermissionError:
+            return {
+                "type": "folder" if is_dir else "file",
+                "relative_path": os.path.relpath(path, start=root_path),
+                "creation_date": "permission_denied",
+                "last_modified": "permission_denied",
+                "author": "permission_denied",
+                "last_modified_by": "permission_denied",
+                "size": 0
+            }
+        except FileNotFoundError:
+            return {
+                "type": "folder" if is_dir else "file",
+                "relative_path": os.path.relpath(path, start=root_path),
+                "creation_date": "unknown",
+                "last_modified": "unknown",
+                "author": "unknown",
+                "last_modified_by": "unknown",
+                "size": 0
+            }
     
     @staticmethod
     def parse_from_style(json_dict: dict) -> DirectoryStructure:
@@ -264,58 +174,97 @@ class JSONStyle(BaseStyle):
         Converts a JSON/dict representation of a directory structure back into a DirectoryStructure object.
 
         Args:
-            json_dict (Dict): The JSON/dict representation of the directory structure.
+            json_dict (dict): The JSON/dict representation of the directory structure.
 
         Returns:
             DirectoryStructure: The parsed directory structure as a DirectoryStructure object.
         """
-        # Initialize the structure
         structure = DirectoryStructure()
-
-        # Get the root key and its value
+        
+        # The root directory should be the first key
+        # It should end with '/' if it's a directory
         root_key = next(iter(json_dict))
-        root_value = json_dict[root_key]
+        if not root_key.endswith('/'):
+            raise ValueError("Invalid JSON structure: root key must represent a directory and end with '/'.")
+        
+        # Extract the root path
+        root_path = root_key.rstrip('/')
+        root_obj = json_dict[root_key]
 
-        # Root item
-        root_name = root_key.rstrip('/')
-        root_path = root_name  # For root, path is the name itself
-        structure.add_item(DirectoryItem(root_path, 0, root_path))
+        # Extract root metadata from __keys__
+        root_keys = root_obj.get("__keys__", {})
+        root_meta = root_keys.get("meta", {})
+        root_item = DirectoryItem(path=root_path, level=0, name=root_path, metadata=root_meta)
+        structure.add_item(root_item)
 
-        # Traverse the root_value
-        structure.items.extend(JSONStyle._traverse_json(root_value, level=1, parent_path=root_path, root_path=root_path))
+        # Remove __keys__ so we can parse the contents
+        if "__keys__" in root_obj:
+            del root_obj["__keys__"]
+
+        # Recursively parse the structure
+        structure.items.extend(JSONStyle._traverse_json(root_obj, level=1, parent_path=root_path))
 
         return structure
 
-    def _traverse_json(node: dict, level: int, parent_path: str, root_path: str) -> List[DirectoryItem]:
+    @staticmethod
+    def _traverse_json(node: dict, level: int, parent_path: str) -> List[DirectoryItem]:
         """
         Recursively traverses the JSON/dict structure to build the list of DirectoryItem objects.
-
+        
         Args:
-            node (Dict): The current node in the JSON/dict structure.
+            node (dict): The current dictionary node representing files/directories.
             level (int): The current level in the directory hierarchy.
-            parent_path (str): The path to the parent directory.
-            root_path (str): The root path of the directory structure.
+            parent_path (str): The absolute path to the parent directory.
 
         Returns:
-            List[DirectoryItem]: A list of DirectoryItems representing the directory structure.
+            List[DirectoryItem]: A list of DirectoryItem objects.
         """
         structure = []
-
         for key, value in node.items():
             if key == '__keys__':
-                continue  # Skip metadata
-            item_name = key.rstrip('/')  # Remove trailing '/' if any
-            current_path = os.path.join(parent_path, item_name)
-            # current_path = os.path.join(root_path, current_path)
-            is_dir = key.endswith('/')
+                # Already handled at higher level, skip
+                continue
 
-            # Add the item to the structure
-            structure.append(DirectoryItem(current_path, level, item_name))
+            is_dir = key.endswith('/')
+            item_name = key.rstrip('/')
+            item_path = os.path.join(parent_path, item_name)
+
+            # Extract __keys__ if present
+            item_keys = {}
+            item_meta = {}
+            if isinstance(value, dict) and "__keys__" in value:
+                item_keys = value["__keys__"]
+                item_meta = item_keys.get("meta", {})
+            
+            item = DirectoryItem(path=item_path, level=level, name=item_name, metadata=item_meta)
+            structure.append(item)
 
             if is_dir:
-                # Recurse into the directory
-                structure.extend(JSONStyle._traverse_json(value, level + 1, current_path, root_path))
+                # It's a directory, recurse deeper
+                sub_node = value.copy()
+                if "__keys__" in sub_node:
+                    del sub_node["__keys__"]
+                structure.extend(JSONStyle._traverse_json(sub_node, level + 1, item_path))
 
         return structure
+    
+    @staticmethod
+    def generate_file_content(path: str, items: List[DirectoryItem], root_dir: str) -> str:
+        """
+        Generate file content using OpenAI API based on directory structure and summaries.
+
+        Args:
+            path (str): The absolute path of the file.
+            items (List[DirectoryItem]): The list of DirectoryItems representing the structure.
+            root_dir (str): The root directory path.
+
+        Returns:
+            str: The generated file content.
+        """
+        # This is a placeholder function. You need to implement the OpenAI API calls
+        # as per your project's requirements.
+        # Example:
+        # return call_openai_api_for_content(path, items, root_dir)
+        return ai_generate_file_content(path, items, root_dir)
 
 
