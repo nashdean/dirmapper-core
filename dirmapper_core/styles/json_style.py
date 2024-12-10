@@ -50,13 +50,26 @@ class JSONStyle(BaseStyle):
         if not root_dir:
             root_dir = root_item.path
 
-        # Build a set of directories for quick lookup
-        dir_set = {item.path for item in items if os.path.isdir(item.path)}
+        # Get metadata for the root directory
+        root_metadata = JSONStyle.get_metadata(root_item.path, True, root_dir)
+        root_dict = {
+            "__keys__": {
+                "meta": root_metadata,
+                "content": {
+                    "content_summary": root_item.metadata.get("summary"),
+                    "short_summary": root_item.metadata.get("short_summary")
+                }
+            }
+        }
 
-        # Build the nested dict
-        nested_dict = {}
+        # We'll insert all subsequent items into root_dict
+        # The top-level dictionary will have one key: the absolute root path + '/'
+        nested_dict = {
+            f"{root_dir}/": root_dict
+        }
 
-        for item in items:
+        # Process all items except the first (root) one
+        for item in items[1:]:
             is_dir = os.path.isdir(item.path)
             metadata = JSONStyle.get_metadata(item.path, is_dir, root_dir)
 
@@ -64,20 +77,23 @@ class JSONStyle(BaseStyle):
             relative_path = os.path.relpath(item.path, start=root_dir)
             parts = relative_path.split(os.sep)
 
-            # Navigate or create intermediate directories in nested_dict
-            current = nested_dict
+            # Navigate under the root directory key
+            current = root_dict
             for part in parts[:-1]:
-                # Intermediate parts are always directories, add a trailing '/' to indicate directory
                 dir_key = part + '/'
                 if dir_key not in current:
                     # Create a placeholder for intermediate directories without __keys__
-                    current[dir_key] = {"__keys__": {
-                        "meta": JSONStyle.get_metadata(os.path.join(root_dir, *parts[:parts.index(part)+1]), True, root_dir),
-                        "content": {
-                            "content_summary": None,
-                            "short_summary": None
+                    mid_path = os.path.join(root_dir, *parts[:parts.index(part)+1])
+                    mid_meta = JSONStyle.get_metadata(mid_path, True, root_dir)
+                    current[dir_key] = {
+                        "__keys__": {
+                            "meta": mid_meta,
+                            "content": {
+                                "content_summary": None,
+                                "short_summary": None
+                            }
                         }
-                    }}
+                    }
                 current = current[dir_key]
 
             # Handle the last part
@@ -97,7 +113,7 @@ class JSONStyle(BaseStyle):
                 # It's a file
                 content = None
                 if include_content:
-                    content = item.content  # Triggers lazy loading
+                    content = item.content  # Triggers lazy loading from DirectoryItem
                     if content is None and generate_content:
                         content = JSONStyle.generate_file_content(item.path, items, root_dir)
 
