@@ -1,7 +1,10 @@
 from importlib.metadata import version, PackageNotFoundError
 import os
+from typing import List
 
 from dirmapper_core.ignore.ignore_list_reader import IgnoreListReader, SimpleIgnorePattern, RegexIgnorePattern
+from dirmapper_core.models.directory_item import DirectoryItem
+from dirmapper_core.models.directory_structure import DirectoryStructure
 
 def clean_json_keys(data: dict | list) -> dict:
     """
@@ -57,7 +60,7 @@ def get_package_version(package_name: str) -> str:
     except PackageNotFoundError:
         return "Unknown version"
 
-def is_last_item(structure, index, current_level):
+def is_last_item(structure: List[DirectoryItem], index: int, current_level: int) -> bool:
     """
     Determine if the current item is the last one at its level in the structure.
 
@@ -72,11 +75,15 @@ def is_last_item(structure, index, current_level):
 
     Example:
         structure = [
-            ('/path/to/dir', 0, 'dir'),
-            ('/path/to/dir/file1.txt', 1, 'file1.txt'),
-            ('/path/to/dir/file2.txt', 1, 'file2.txt'),
-            ('/path/to/dir/subdir', 1, 'subdir'),
-            ('/path/to/dir/subdir/file3.txt', 2, 'file3.txt')
+            DirectoryItem('/path/to/root/dir', 0, 'root'),
+            DirectoryItem('file1.txt', 1, 'file1.txt'),
+            DirectoryItem('file2.txt', 1, 'file2.txt'),
+            DirectoryItem('sub_dir1', 1, 'sub_dir1'),
+            DirectoryItem('sub_dir1/sub_dir2', 2, 'sub_dir2'),
+            DirectoryItem('sub_dir1/sub_dir2/file3.txt', 3, 'file3.txt'),
+            DirectoryItem('sub_dir1/sub_dir2/file4.txt', 3, 'file4.txt'),
+            DirectoryItem('sub_dir3', 1, 'sub_dir3'),
+            DirectoryItem('sub_dir3/file5.txt', 2, 'file5.txt')
         ]
         index = 1
         current_level = 1
@@ -84,7 +91,7 @@ def is_last_item(structure, index, current_level):
     """
     # Check if there is any next item at the same level
     for next_index in range(index + 1, len(structure)):
-        next_level = structure[next_index][1]
+        next_level = structure[next_index].level
         if next_level == current_level:
             return False  # There is another item at the same level
         elif next_level < current_level:

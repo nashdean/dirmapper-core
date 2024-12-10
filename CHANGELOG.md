@@ -17,13 +17,20 @@
 - The `meta` tags now include `root_path` as a field for specifying the path to write/read a directory structure. If not set or set to None, reads/writes will default to the current working directory.
 
 ### Style Changes
-- **New Styles**: Added support for `IndentedTreeStyle` (formerly known as `IndentationStyle`) and changed `IndentationStyle` to be same style without the tree characters
+- Changed `IndentationStyle` to be same style without the tree characters
 - Updated `write_structure` in `JSONStyle` to follow the expected format of the JSON Template to include special key `__keys__`
 - Updated `JSONStyle` to have `json_to_structure` function to convert JSON back into a list of tuples
 - Made all styles static since they do not carry state
 
+### Models
+- Abstracted the generic structure from `Tuple[str, int, str]` into a `DirectoryItem` class to make it more extensible
+    - Added a metadata attribute to class that can be used for the `summarize` to get a `summary` element
+- Abstracted the `List[Tuple[str, int, str]]` into its own class which is essentially a List of `DirectoryItem` objects
+    - Added multiple custom methods that could be useful in future
+
 ### Miscellaneous
 - Updated README with fixes
+
 
 ## [0.1.0] - 2024-11-01
 **Breaking Changes to Imports**

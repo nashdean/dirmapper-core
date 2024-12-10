@@ -10,6 +10,9 @@ from dirmapper_core.utils.constants import STYLE_MAP, EXTENSIONS, FORMATTER_MAP
 from dirmapper_core.styles.base_style import BaseStyle
 from dirmapper_core.formatter.formatter import Formatter
 
+from dirmapper_core.models.directory_structure import DirectoryStructure
+from dirmapper_core.models.directory_item import DirectoryItem
+
 class DirectoryStructureGenerator:
     """
     Class to generate a directory structure mapping.
@@ -36,35 +39,42 @@ class DirectoryStructureGenerator:
         if output:
             self._validate_file_extension()
 
-        logger.info(f"Directory structure generator initialized for root dir: {root_dir}, output file: {output}, style: {self.style.__class__.__name__}, formatter: {self.formatter.__class__.__name__}")
+        logger.debug(f"Directory structure generator initialized for root dir: {root_dir}, output file: {output}, style: {self.style.__class__.__name__}, formatter: {self.formatter.__class__.__name__}")
 
-    def generate(self) -> str | dict:
+    def generate(self, styled: bool = True, **kwargs) -> str | dict | DirectoryStructure:
         """
         Generate the directory structure and returns it as a string or JSON template depending on the DirectoryStructureGenerator selected `style` input.
         
+        Args:
+            styled (bool): Whether to return the styled output (True) or the raw output (False).
+
         Raises:
             NotADirectoryError: If the root directory is not valid.
             Exception: If any other error occurs during generation.
         """
         # try:
-        if not self.verify_path(self.root_dir):
+        if not self._verify_path(self.root_dir):
             raise NotADirectoryError(f'"{self.root_dir}" is not a valid path to a directory.')
         logger.info(f"Generating directory structure...")
 
         # Start with the root directory
-        structure = []
+        structure = DirectoryStructure()
         root_name = os.path.abspath(self.root_dir)  # Get the absolute path
-        structure.append((root_name, 0, root_name))
+        structure.add_item(DirectoryItem(root_name, 0, root_name))
 
         sorted_structure = self._build_sorted_structure(self.root_dir, level=1)
-        structure.extend(sorted_structure)
+        structure.items.extend(sorted_structure.to_list())
         
-
-        instructions = {
-            'style': self.style,
-            'root_dir': self.root_dir  # Include root_dir in instructions
-        }
-        formatted_structure = self.formatter.format(structure, instructions)
+        # Format the directory structure based on the selected style
+        if styled:
+            instructions = {
+                'style': self.style,
+                'root_dir': self.root_dir,  # Include root_dir in instructions
+            }
+            instructions.update(kwargs)  # Include any additional kwargs in instructions
+            formatted_structure = self.formatter.format(structure, instructions) # Return the formatted structure as a string (or dict if JSON)
+        else:
+            formatted_structure = structure # Return the raw structure as DirectoryStructure object
 
         # Log the ignored paths after generating the directory structure
         log_ignored_paths(self.ignorer)
@@ -78,7 +88,7 @@ class DirectoryStructureGenerator:
         #     log_exception(os.path.basename(__file__), e)
         #     print(f"Error: {e}")
 
-    def _build_sorted_structure(self, current_dir: str, level: int) -> List[Tuple[str, int, str]]:
+    def _build_sorted_structure(self, current_dir: str, level: int) -> DirectoryStructure:
         """
         Build the sorted directory structure.
         
@@ -87,27 +97,29 @@ class DirectoryStructureGenerator:
             level (int): The current level of depth in the directory structure.
         
         Returns:
-            List[Tuple[str, int, str]]: The sorted directory structure.
+            DirectoryStructure: The sorted directory structure.
         """
-        structure = []
+        structure = DirectoryStructure()
         dir_contents = os.listdir(current_dir)
         sorted_contents = self.sorting_strategy.sort(dir_contents)
         
         if level > self.max_depth:
             relative_path = os.path.relpath(current_dir, self.root_dir)
-            structure.append((os.path.join(relative_path, ". . ."), level, ". . ."))
+            structure.add_item(DirectoryItem(os.path.join(current_dir, ". . ."), level, ". . ."))
             return structure
         
         for item in sorted_contents:
             item_path = os.path.join(current_dir, item)
             if self.ignorer.should_ignore(item_path):
                 continue
-            # Compute relative path
-            relative_item_path = os.path.relpath(item_path, self.root_dir)
-            structure.append((relative_item_path, level, item))
+            metadata = {}
+            if os.path.isfile(item_path):
+                metadata['content'] = None  # Indicate that content is available but not loaded
+            structure.add_item(DirectoryItem(item_path, level, item, metadata))
 
             if os.path.isdir(item_path):
-                structure.extend(self._build_sorted_structure(item_path, level + 1))
+                sub_structure = self._build_sorted_structure(item_path, level + 1)
+                structure.items.extend(sub_structure.to_list())
 
         return structure
 
@@ -123,7 +135,7 @@ class DirectoryStructureGenerator:
         if not self.output.endswith(expected_extension):
             raise ValueError(f"Output file '{self.output}' does not match the expected extension for style '{self.style.__class__.__name__}': {expected_extension}")
 
-    def verify_path(self, path: str = None) -> bool:
+    def _verify_path(self, path: str = None) -> bool:
         """
         Verify if a path is a valid directory.
         

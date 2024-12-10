@@ -20,7 +20,7 @@ class StructureWriter:
 
     def create_structure(self, structure: dict):
         """
-        Store the directory structure from the template.
+        Stores the directory structure from the template to the StructureWriter object.
 
         Args:
             structure (dict): The directory structure template to create.
@@ -52,7 +52,7 @@ class StructureWriter:
 
     def write_structure(self, safety_check: bool = True):
         """
-        Write the directory structure to the file system, if base_path is set.
+        Write the directory structure from the Template to the file system, if base_path is set.
 
         Args:
             safety_check (bool): Flag indicating whether to prompt the user before writing to the file system. Defaults to True.

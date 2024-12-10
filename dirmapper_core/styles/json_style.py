@@ -2,6 +2,8 @@ from datetime import datetime
 import os
 import platform
 from typing import List, Tuple
+from dirmapper_core.models.directory_item import DirectoryItem
+from dirmapper_core.models.directory_structure import DirectoryStructure
 from dirmapper_core.styles.base_style import BaseStyle
 
 # Import Unix-specific modules only on Unix systems
@@ -15,7 +17,7 @@ class JSONStyle(BaseStyle):
     """
     #TODO: Update this to accept kwarg generate_content to generate file content based on the file name and context of the directory and intended project.
     @staticmethod
-    def write_structure(structure: List[Tuple[str, int, str]], **kwargs) -> dict:
+    def write_structure(structure: DirectoryStructure, **kwargs) -> dict:
         """
         Converts a list of tuples representing a directory structure into a JSON-like representation. 
         Each file or directory includes a "__keys__" field containing metadata (e.g., type, size, 
@@ -25,22 +27,17 @@ class JSONStyle(BaseStyle):
         errors or missing files.
 
         Args:
-            - structure (List[Tuple[str, int, str]]): A list of tuples where each tuple contains:
-                - str: The path to the file or directory.
-                - int: The level of indentation in the hierarchy.
-                - str: The name of the file or directory.
+            - structure (DirectoryStructure): The directory structure to convert to JSON.
         
         Returns:
             - dict: A JSON representation of the directory structure with metadata.
 
         Example:
             Input structure:
-                [
-                    ('/path/to/dir', 0, 'dir'),
-                    ('/path/to/dir/file1.txt', 1, 'file1.txt'),
-                    ('/path/to/dir/subdir', 1, 'subdir'),
-                    ('/path/to/dir/subdir/file2.txt', 2, 'file2.txt')
-                ]
+                DirectoryStructure([DirectoryItem('/path/to/dir', 0, 'dir'),
+                                    DirectoryItem('/path/to/dir/file1.txt', 1, 'file1.txt'),
+                                    DirectoryItem('/path/to/dir/subdir', 1, 'subdir'),
+                                    DirectoryItem('/path/to/dir/subdir/file2.txt', 2, 'file2.txt')])
 
             Output structure:
                 {
@@ -56,8 +53,8 @@ class JSONStyle(BaseStyle):
                                 'size': 0
                             },
                             'content': {
-                                'content_summary': 'none',
-                                'short_summary': 'none'
+                                'content_summary': None,
+                                'short_summary': 'None
                             }
                         },
                         'file1.txt': {
@@ -72,9 +69,9 @@ class JSONStyle(BaseStyle):
                                     'size': 1024
                                 },
                                 'content': {
-                                    'file_content': 'none',
-                                    'content_summary': 'none',
-                                    'short_summary': 'none'
+                                    'file_content': None,
+                                    'content_summary': None,
+                                    'short_summary': None
                                 }
                             }
                         },
@@ -90,8 +87,8 @@ class JSONStyle(BaseStyle):
                                     'size': 0
                                 },
                                 'content': {
-                                    'content_summary': 'none',
-                                    'short_summary': 'none'
+                                    'content_summary': None,
+                                    'short_summary': None
                                 }
                             },
                             'file2.txt': {
@@ -106,9 +103,9 @@ class JSONStyle(BaseStyle):
                                         'size': 2048
                                     },
                                     'content': {
-                                        'file_content': 'none',
-                                        'content_summary': 'none',
-                                        'short_summary': 'none'
+                                        'file_content': None,
+                                        'content_summary': None,
+                                        'short_summary': None
                                     }
                                 }
                             }
@@ -172,14 +169,17 @@ class JSONStyle(BaseStyle):
                     "size": 0
                 }
             
-        def build_json_structure(structure, start_index: int, current_level: int, parent_path: str, root_path: str) -> Tuple[dict, int]:
+        def build_json_structure(structure: DirectoryStructure | list, start_index: int, current_level: int, parent_path: str, root_path: str, show_keys: bool=True) -> Tuple[dict, int]:
             """
             Builds the modified JSON-like structure with real metadata.
             """
             result = {}
             i = start_index
+            if isinstance(structure, DirectoryStructure):
+                structure = structure.items
             while i < len(structure):
-                item_path, item_level, item_name = structure[i]
+                current_item = structure[i]
+                _, item_level, item_name, _ = current_item.to_tuple()
                 if item_level < current_level:
                     # We've moved back to a higher level; return to the previous call
                     break
@@ -187,8 +187,11 @@ class JSONStyle(BaseStyle):
                 # Construct the full path to the item
                 full_item_path = os.path.join(parent_path, item_name)
 
+                # Get the next item to determine if the current item is a directory
+                next_item = structure[i + 1] if i + 1 < len(structure) else DirectoryItem("", -1, "", None)
+
                 # Determine if item is a directory based on the next item's level
-                if (i + 1) < len(structure) and structure[i + 1][1] > item_level:
+                if (i + 1) < len(structure) and next_item.level > item_level:
                     is_dir = True
                 else:
                     is_dir = False
@@ -197,48 +200,58 @@ class JSONStyle(BaseStyle):
 
                 if is_dir:
                     # Recursively build the sub-structure
-                    sub_structure, new_index = build_json_structure(structure, i + 1, item_level + 1, full_item_path, root_path)
+                    sub_structure, new_index = build_json_structure(structure, i + 1, item_level + 1, full_item_path, root_path, show_keys)
                     # Append '/' to directory names for consistency
                     folder_key = item_name + '/'
-                    result[folder_key] = {
-                        "__keys__": {
-                            "meta": metadata,
-                            "content": {
-                                "content_summary": None,
-                                "short_summary": None
-                            }
-                        },
-                        **sub_structure
-                    }
+
+                    if show_keys:
+                        result[folder_key] = {
+                            "__keys__": {
+                                "meta": metadata,
+                                "content": {
+                                    "content_summary": current_item.metadata.get("summary"),
+                                    "short_summary": current_item.metadata.get("short_summary")
+                                }
+                            },
+                            **sub_structure
+                        }
+                    else:
+                        result[folder_key] = sub_structure
                     i = new_index  # Update index to the position returned by recursion
                 else:
-                    result[item_name] = {
-                        "__keys__": {
-                            "meta": metadata,
-                            "content": {
-                                "file_content": None,
-                                "content_summary": None,
-                                "short_summary": None
+                    if show_keys:
+                        result[item_name] = {
+                            "__keys__": {
+                                "meta": metadata,
+                                "content": {
+                                    "file_content": current_item.metadata.get("content"),
+                                    "content_summary": current_item.metadata.get("summary"),
+                                    "short_summary": current_item.metadata.get("short_summary")
+                                }
                             }
                         }
-                    }
+                    else:
+                        result[item_name] = None
                     i += 1  # Move to the next item
 
             return result, i
         
         # Start building the structure at level root_level + 1
-        root_path, root_level, root_name = structure[0]
-        json_structure, _ = build_json_structure(structure, 1, root_level + 1, root_path, root_path)
+        root_path, root_level, root_name, root_metadata = structure.items[0].to_tuple()  # Get the root directory from first DirectoryItem
+        json_structure, _ = build_json_structure(structure, 1, root_level + 1, root_path, root_path, kwargs.get("show_keys", True))
         metadata = get_metadata(root_path, True, root_path)
 
+        if not kwargs.get("show_keys", True):
+            return {root_name + '/': json_structure}
+        
         # Include metadata for the root directory and attach its contents
         return {
             root_name + '/': {
                 "__keys__": {
                     "meta": metadata,
                     "content": {
-                        "content_summary": None,
-                        "short_summary": None
+                        "content_summary": root_metadata.get("summary"),
+                        "short_summary": root_metadata.get("short_summary")
                     }
                 },
                 **json_structure
@@ -246,23 +259,18 @@ class JSONStyle(BaseStyle):
         }
     
     @staticmethod
-    def parse_from_style(json_dict: dict) -> List[Tuple[str, int, str]]:
+    def parse_from_style(json_dict: dict) -> DirectoryStructure:
         """
-        Converts a JSON/dict representation of a directory structure back into a list of tuples.
-        
-        Each tuple contains:
-            - str: The path to the file or directory.
-            - int: The level of indentation in the hierarchy.
-            - str: The name of the file or directory.
+        Converts a JSON/dict representation of a directory structure back into a DirectoryStructure object.
 
         Args:
             json_dict (Dict): The JSON/dict representation of the directory structure.
 
         Returns:
-            List[Tuple[str, int, str]]: A list of tuples representing the directory structure.
+            DirectoryStructure: The parsed directory structure as a DirectoryStructure object.
         """
-        # Initialize the structure list
-        structure = []
+        # Initialize the structure
+        structure = DirectoryStructure()
 
         # Get the root key and its value
         root_key = next(iter(json_dict))
@@ -271,24 +279,25 @@ class JSONStyle(BaseStyle):
         # Root item
         root_name = root_key.rstrip('/')
         root_path = root_name  # For root, path is the name itself
-        structure.append((root_path, 0, root_path))
+        structure.add_item(DirectoryItem(root_path, 0, root_path))
 
         # Traverse the root_value
-        structure.extend(JSONStyle._traverse_json(root_value, level=1, parent_path=""))
+        structure.items.extend(JSONStyle._traverse_json(root_value, level=1, parent_path=root_path, root_path=root_path))
 
         return structure
 
-    def _traverse_json(node: dict, level: int, parent_path: str) -> List[Tuple[str, int, str]]:
+    def _traverse_json(node: dict, level: int, parent_path: str, root_path: str) -> List[DirectoryItem]:
         """
-        Recursively traverses the JSON/dict structure to build the list of tuples.
+        Recursively traverses the JSON/dict structure to build the list of DirectoryItem objects.
 
         Args:
             node (Dict): The current node in the JSON/dict structure.
             level (int): The current level in the directory hierarchy.
             parent_path (str): The path to the parent directory.
+            root_path (str): The root path of the directory structure.
 
         Returns:
-            List[Tuple[str, int, str]]: A list of tuples representing the directory structure.
+            List[DirectoryItem]: A list of DirectoryItems representing the directory structure.
         """
         structure = []
 
@@ -297,14 +306,15 @@ class JSONStyle(BaseStyle):
                 continue  # Skip metadata
             item_name = key.rstrip('/')  # Remove trailing '/' if any
             current_path = os.path.join(parent_path, item_name)
+            # current_path = os.path.join(root_path, current_path)
             is_dir = key.endswith('/')
 
             # Add the item to the structure
-            structure.append((current_path, level, item_name))
+            structure.append(DirectoryItem(current_path, level, item_name))
 
             if is_dir:
                 # Recurse into the directory
-                structure.extend(JSONStyle._traverse_json(value, level + 1, current_path))
+                structure.extend(JSONStyle._traverse_json(value, level + 1, current_path, root_path))
 
         return structure
 

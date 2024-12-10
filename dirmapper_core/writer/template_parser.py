@@ -7,7 +7,6 @@ import datetime
 from dirmapper_core.styles.base_style import BaseStyle
 from dirmapper_core.styles.flat_list_style import FlatListStyle
 from dirmapper_core.styles.indentation_style import IndentationStyle
-from dirmapper_core.styles.indented_tree_style import IndentedTreeStyle
 from dirmapper_core.styles.json_style import JSONStyle
 from dirmapper_core.styles.list_style import ListStyle
 from dirmapper_core.styles.tree_style import TreeStyle
@@ -242,9 +241,6 @@ class TemplateParser:
             # Line starts with tree-drawing characters without leading spaces
             if re.search(r'^(├──|└──)', line):
                 return TreeStyle
-            # Line starts with spaces followed by tree-drawing characters
-            elif re.search(r'^\s+(├──|└──)', line):
-                return IndentedTreeStyle
             # Line contains only words and numbers with varying levels of indentation
             elif re.search(r'^\s+\w+', line):
                 return IndentationStyle
@@ -275,8 +271,8 @@ class TemplateParser:
         try:
             generic_structure = style.parse_from_style(lines)
             template = JSONStyle.write_structure(generic_structure, generate_content=generate_content)
-            root_path = generic_structure[0][0] # Get the root path from the first item in the structure
+            root_path = generic_structure.items[0].path # Get the root path from the first item in the structure
         except Exception as e:
-            logger.error(f"Error parsing directory structure from {style.__STR__}: {e}")
+            logger.error(f"Error parsing directory structure from {style.__str__}: {e}")
         
         return root_path, template

@@ -23,12 +23,12 @@ pip install dirmapper-core
 ### Generating Directory Structure
 You can generate a directory structure using the `DirectoryStructureGenerator` class. Here is an example:
 ```python
+# Example usage
+
 from dirmapper_core.generator.directory_structure_generator import DirectoryStructureGenerator
 from dirmapper_core.ignore.path_ignorer import PathIgnorer
-from dirmapper_core.ignore.ignore_list_reader import SimpleIgnorePattern
 from dirmapper_core.styles.tree_style import TreeStyle
 from dirmapper_core.formatter.formatter import PlainTextFormatter
-from dirmapper.utils.sorting_strategy import AscendingSortStrategy
 
 # Define ignore patterns
 ignore_patterns = [
@@ -50,9 +50,8 @@ generator = DirectoryStructureGenerator(
     formatter=PlainTextFormatter()
 )
 
-# Generate and save the directory structure
-structure = generator.generate()
-print(structure)
+# Generate the directory structure into the style specified when initializing DirectoryStructureGenerator
+structure = generator.generate() # Returns str
 ```
 Generating a directory structure results in a formatted string depending on your style and formatter. Here is an example of the `TreeStyle`:
 ```
@@ -73,6 +72,17 @@ Generating a directory structure results in a formatted string depending on your
 │       └── main.py
 ```
 See the [styles](dirmapper_core/styles) folder for all valid style examples.
+
+You may also generate a raw DirectoryStructure object if you set the parameter `styled` to False in the `generate()` method. This allows access to the `DirectoryStructure` class helper functions and access to `DirectoryItems`
+```python
+# ...
+structure = generator.generate(styled=False) # Returns DirectoryStructure object
+
+# Access file content lazily
+for item in structure.to_list():
+    if item.metadata.get('content') is not None:
+        print(f"Content of {item.path}: {item.content}")
+```
 
 ### Creating Directory Structure from Template
 You can create a directory structure from a template using the `StructureWriter` class. Here is an example:
@@ -217,7 +227,7 @@ template = """
 parsed_template = tp.parse_from_directory_structure(template)
 print(json.dumps(parsed_template, indent=4))
 ```
-Other allowable styles include `list`, `flat`, `indentation`, and `indented_tree`.
+Other allowable styles include `list`, `flat`, and `indentation`.
 
 ### Summarizing Directory Structure
 You can summarize the directory structure using the `DirectorySummarizer` class. Here is an example:

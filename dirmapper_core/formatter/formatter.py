@@ -1,5 +1,6 @@
 import json
 from abc import ABC, abstractmethod
+from dirmapper_core.models.directory_structure import DirectoryStructure
 from dirmapper_core.styles.tree_style import TreeStyle
 from dirmapper_core.styles.html_style import HTMLStyle
 from dirmapper_core.styles.json_style import JSONStyle
@@ -25,26 +26,25 @@ class PlainTextFormatter(Formatter):
     """
     A concrete implementation of the Formatter class that formats data as plain text.
     """
-    def format(self, data: str, instructions:dict={'style':TreeStyle}) -> str:
+    def format(self, data: DirectoryStructure, instructions:dict={'style':TreeStyle}) -> str:
         """
         Format the data as plain text.
 
         Args:
-            data (str): The data to format as plain text.
+            data (DirectoryStructure): The Directory Structure object to format as plain text.
             instructions (dict): The instructions for formatting the data. The instructions should include a 'style' key that specifies the style to use for formatting the data. Defaults to TreeStyle.
         
         Returns:
-            str: The data formatted as plain text.
+            str: The  Directory Structure formatted as plain text.
         
         Example:
             Parameters:
-                data = [
-                    ('/path/to/dir', 0, 'dir'),
-                    ('/path/to/dir/file1.txt', 1, 'file1.txt'),
-                    ('/path/to/dir/file2.txt', 1, 'file2.txt'),
-                    ('/path/to/dir/subdir', 1, 'subdir'),
-                    ('/path/to/dir/subdir/file3.txt', 2, 'file3.txt')
-                ]
+                data = DirectoryStructure()
+                    data.add_item(DirectoryItem('/path/to/dir', 0, 'dir'))
+                    data.add_item(DirectoryItem('/path/to/dir/file1.txt', 1, 'file1.txt'))
+                    data.add_item(DirectoryItem('/path/to/dir/file2.txt', 1, 'file2.txt'))
+                    data.add_item(DirectoryItem('/path/to/dir/subdir', 1, 'subdir'))
+                    data.add_item(DirectoryItem('/path/to/dir/subdir/file3.txt', 2, 'file3.txt'))
                 instructions = {
                     'style': TreeStyle()
                 }
@@ -106,7 +106,7 @@ class HTMLFormatter(Formatter):
         return f"<html><body><pre>{html_data}</pre></body></html>"
 
 class JSONFormatter(Formatter):
-    def format(self, data: dict | list, instructions:dict={}) -> str:
+    def format(self, data: DirectoryStructure, instructions:dict={}) -> str:
         """
         Format the data as a JSON string.
 
@@ -114,12 +114,9 @@ class JSONFormatter(Formatter):
             data: The data to format as JSON.
             instructions: The instructions for formatting the data. Currently not used by the JSON formatter.
         """
-        if isinstance(data, dict):
-            return json.dumps(data, indent=4)
-        elif isinstance(data, list):
-            return json.dumps(JSONStyle.write_structure(data), indent=4)
-        else:
-            raise ValueError("Data must be a dictionary or a JSON string to format as JSON")
+
+        return json.dumps(JSONStyle.write_structure(data, **instructions), indent=4)
+
 
 #TODO: Update to implement format based on the JSON data structure provided by TemplateParser
 class MarkdownFormatter(Formatter):
