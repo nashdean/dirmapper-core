@@ -108,12 +108,37 @@ class DirectoryStructure:
             structure_dict[item.level].append(item)
         return dict(structure_dict)
     
-    def to_nested_dict(self) -> Dict[str, Union[Dict, Dict[str, str]]]:
+    def to_nested_dict(self, metadata_fields: Optional[List[str]] = None) -> Dict[str, Union[Dict, None]]:
         """
-        Convert the structure to a nested dictionary format.
-
+        Convert the structure to a nested dictionary format with metadata under __keys__.
+        
+        Args:
+            metadata_fields (Optional[List[str]]): List of metadata fields to include.
+                If None, include all metadata fields.
+                If empty list, set __keys__ to None.
+                
         Returns:
-            Dict[str, Union[Dict, str]]: The directory structure as a nested dictionary.
+            Dict[str, Union[Dict, None]]: The directory structure as a nested dictionary.
+        
+        Example:
+            {
+                "folder1": {
+                    "file1.txt": {
+                        "size": "1.2MB",
+                        "date_modified": "2021-01-01"
+                    },
+                    "file2.txt": {
+                        "size": "1.5MB",
+                        "date_modified": "2021-01-02"
+                    }
+                },
+                "folder2": {
+                    "file3.txt": {
+                        "size": "1.8MB",
+                        "date_modified": "2021-01-03"
+                    }
+                }
+            }
         """
         nested_dict = {}
 
@@ -121,15 +146,29 @@ class DirectoryStructure:
             parts = item.path.split(os.sep)
             current_level = nested_dict
 
+            # Navigate to the correct level
             for part in parts[:-1]:
-                if part not in current_level:
-                    current_level[part] = {}
-                current_level = current_level[part]
-            
-            # Add specified metadata keys
-            item_metadata = {key: item.metadata.get(key, "") for key in item.metadata.keys()}
+                if part:  # Skip empty parts
+                    if part not in current_level:
+                        current_level[part] = {}
+                    current_level = current_level[part]
 
-            current_level[parts[-1]] = item_metadata
+            # Add the final item with its metadata
+            if parts[-1]:  # Only process non-empty parts
+                current_level[parts[-1]] = {}
+                
+                # Handle metadata
+                if metadata_fields == []:
+                    current_level[parts[-1]]['__keys__'] = None
+                else:
+                    # If metadata_fields is None, include all fields
+                    fields_to_include = metadata_fields or item.metadata.keys()
+                    metadata = {
+                        k: v for k, v in item.metadata.items() 
+                        if k in fields_to_include
+                    }
+                    if metadata:
+                        current_level[parts[-1]]['__keys__'] = metadata
 
         return nested_dict
     
