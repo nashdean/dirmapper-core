@@ -95,7 +95,7 @@ base_path = 'Path/To/Your/Project'
 # Define the structure template
 structure_template = {
     "meta": {
-        "version": "1.1",
+        "version": "2.0",
         "source": "dirmapper",
         "author": "root",
         "root_path": base_path,
@@ -328,8 +328,99 @@ regex:^.*dist$
 ### Custom Styles and Formatters
 You can create custom styles and formatters by extending the BaseStyle and Formatter classes, respectively.
 
-### Contributing
+## Appendix
+### Working with DirectoryStructure Class
+All styles and many functions work with the DirectoryStructure class under the hood. This class is essentially an abstracted list of DirectoryItem objects. Below is a sample usage of initializing, adding items, and converting to a specialized dictionary object.
+```python
+# Create a new DirectoryStructure instance
+structure = DirectoryStructure()
+
+# Add items to the structure
+structure.add_item(DirectoryItem('/path/to/game', 0, 'game', {
+    'type': 'folder',
+    'content': None,
+    'summary': None,
+    'short_summary': None,
+    'tags': []
+}))
+
+structure.add_item(DirectoryItem('/path/to/game/game_loop.py', 1, 'game_loop.py', {
+    'type': 'file',
+    'content': 'def main_loop():\n    while True:\n        update()\n        render()',
+    'summary': None,
+    'short_summary': None,
+    'tags': []
+}))
+
+structure.add_item(DirectoryItem('/path/to/game/snake.py', 1, 'snake.py', {
+    'type': 'file',
+    'content': 'class Snake:\n    def __init__(self):\n        self.length = 1',
+    'summary': None,
+    'short_summary': None,
+    'tags': []
+}))
+
+    # Convert to nested dictionary
+    nested_dict = structure.to_nested_dict()
+
+    # Print the result in a readable format
+    print(json.dumps(nested_dict, indent=2))
+```
+The above code will generate the following output to the console:
+```json
+{
+  "path": {
+    "to": {
+      "game": {
+        "__keys__": {
+          "type": "folder",
+          "content": null,
+          "summary": null,
+          "short_summary": null,
+          "tags": []
+        },
+        "game_loop.py": {
+          "__keys__": {
+            "type": "file",
+            "content": "def main_loop():\n    while True:\n        update()\n        render()",
+            "summary": null,
+            "short_summary": null,
+            "tags": []
+          }
+        },
+        "snake.py": {
+          "__keys__": {
+            "type": "file",
+            "content": "class Snake:\n    def __init__(self):\n        self.length = 1",
+            "summary": null,
+            "short_summary": null,
+            "tags": []
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+### Working with DirectoryItem Class
+The most basic element of a directory structure is an item represented by the `DirectoryItem` class. This class is an abstracted object representing a `file` or `folder`. Each object holds valuable metadata about the underlying item, including summaries of the contents which can be generated with AI.
+```python
+    DirectoryItem(
+        path='/path/to/project/README.md',
+        level=1,
+        name='README.md',
+        metadata={
+            'type': 'file',
+            'size': '256B',
+            'content': '# Project Documentation',
+            'creation_date': '2024-01-01'
+        }
+    )
+```
+
+## Contributing
 Contributions are welcome! Please open an issue or submit a pull request on GitHub.
 
-### License
+## License
 This project is licensed under the MIT License. See the LICENSE file for details.

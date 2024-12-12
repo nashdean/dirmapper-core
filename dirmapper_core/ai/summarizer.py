@@ -3,7 +3,9 @@ import copy
 import os
 from typing import List, Optional, Tuple
 from dirmapper_core.formatter.formatter import Formatter
+from dirmapper_core.models.directory_item import DirectoryItem
 from dirmapper_core.models.directory_structure import DirectoryStructure
+from dirmapper_core.styles.tree_style import TreeStyle
 from dirmapper_core.utils.logger import logger, log_periodically, stop_logging
 from dirmapper_core.writer.template_parser import TemplateParser
 from openai import OpenAI, AuthenticationError
@@ -29,6 +31,7 @@ class DirectorySummarizer:
         self.is_local = config.get('use_local', True)
         self.client = None
         self.summarize_file_content = config.get('summarize_file_content', False)
+        self.max_short_summary_characters = config.get('max_short_summary_characters', 75)
         self.max_file_summary_words = config.get('max_file_summary_words', 50)
         self.file_summarizer = FileSummarizer(config)  # Kept this
 
@@ -81,7 +84,7 @@ class DirectorySummarizer:
                 }
         """
         # Convert DirectoryStructure to nested dictionary with __keys__
-        nested_dict = directory_structure.to_nested_dict()
+        # nested_dict = directory_structure.to_nested_dict()
         
         if self.is_local:
             logger.warning('Localized summary functionality under construction. Set preferences to use the api by setting `is_local` to False.')
@@ -93,10 +96,14 @@ class DirectorySummarizer:
         }
 
         # Summarize the structure
-        summarized_structure = self._summarize_api(nested_dict, meta_data)
+        summarized_structure = self._summarize_api(directory_structure, meta_data)
+
+        # Merge summaries back into the original structure
+        directory_structure.merge_nested_dict(summarized_structure)
+
         return summarized_structure
 
-    def _summarize_api(self, directory_structure: dict, meta_data: dict) -> dict:
+    def _summarize_api(self, directory_structure: DirectoryStructure, meta_data: dict) -> dict:
         """
         Summarizes the directory structure using the OpenAI API.
 
@@ -111,20 +118,17 @@ class DirectorySummarizer:
         
         # Preprocess to add content summaries if enabled
         if self.summarize_file_content:
-            self._preprocess_structure(directory_structure, root_path=root_path)
+            self._preprocess_structure(directory_structure)
         
+        print("Preprocessed structure:", directory_structure)
         # Create copy for API request without file content
         api_structure = copy.deepcopy(directory_structure)
-        self._remove_rel_path(api_structure)
 
         # Get summaries from API
-        summarized_structure = self.summarize_directory_structure_api(
-            api_structure, 
-            self.max_file_summary_words
+        summarized_structure = self._summarize_directory_structure_api(
+            api_structure,
+            self.max_short_summary_characters     
         )
-
-        # Restore paths and merge summaries into original structure
-        self._restore_rel_path(directory_structure, summarized_structure)
 
         return summarized_structure
 
@@ -174,59 +178,24 @@ class DirectorySummarizer:
 
         return summarized_structure
 
-    def _preprocess_structure(self, parsed_structure: dict, current_path: str = "", root_path: Optional[str] = None) -> None:
+    def _preprocess_structure(self, structure: DirectoryStructure) -> None:
         """
         Preprocesses the directory structure to add content summaries in __keys__.content.
         Modifies the structure in place.
 
         Args:
-            parsed_structure (dict): The directory structure to preprocess
-            current_path (str): Current path being processed
-            root_path (str): Root directory path
+            structure (DirectoryStructure): The directory structure to preprocess
         """
-        for key, value in parsed_structure.items():
-            if isinstance(value, dict):
-                if '__keys__' in value:
-                    # Get file path
-                    path = os.path.join(root_path or '', current_path, key) if current_path else key
-                    
-                    # Summarize content if it's a file
-                    if value['__keys__'].get('meta', {}).get('type') == 'file':
-                        content = value['__keys__'].get('content', {}).get('file_content')
-                        if content:
-                            summary = self.file_summarizer.summarize(content)
-                            value['__keys__']['content']['content_summary'] = summary
-                            
-                # Recurse into nested directories
-                new_path = os.path.join(current_path, key) if current_path else key
-                self._preprocess_structure(value, new_path, root_path)
-
-    
-    def _remove_rel_path(self, structure: dict) -> None:
-        """
-        Removes relative paths from the structure to clean it for API calls.
-        Modifies the structure in place.
-        """
-        for key, value in structure.items():
-            if isinstance(value, dict):
-                if '__keys__' in value:
-                    if 'meta' in value['__keys__']:
-                        value['__keys__']['meta'].pop('relative_path', None)
-                self._remove_rel_path(value)
-
-    def _restore_rel_path(self, original: dict, modified: dict) -> None:
-        """
-        Restores relative paths from original structure to the modified one.
-        Modifies the modified structure in place.
-        """
-        for key in original:
-            if key in modified and isinstance(original[key], dict):
-                if '__keys__' in original[key] and '__keys__' in modified[key]:
-                    if 'meta' in original[key]['__keys__']:
-                        rel_path = original[key]['__keys__']['meta'].get('relative_path')
-                        if rel_path:
-                            modified[key]['__keys__']['meta']['relative_path'] = rel_path
-                self._restore_rel_path(original[key], modified[key])
+        for item in structure.items:
+            
+            # Summarize content if it's a file
+            if item.metadata.get('type') == 'file' and self._should_summarize_file(item.path):
+                content = item.content
+                if content:
+                    print("Summarizing content for:", item.path)
+                    summary = self.file_summarizer.summarize_content(content, self.max_file_summary_words)
+                    print("Summary:", summary)
+                    item.summary = summary
 
     def _should_summarize_file(self, file_path: str) -> bool:
         allowed_extensions = ['.py', '.md', '.txt']
@@ -245,13 +214,13 @@ class DirectorySummarizer:
         """
         return self.formatter.format(summarized_structure, self.format_instruction)
     
-    def summarize_directory_structure_local(self, directory_structure: str, summary_word_length: int) -> dict:
+    def summarize_directory_structure_local(self, directory_structure: str, short_summary_length: int) -> dict:
         """
         Summarizes the directory structure using a local model.
 
         Args:
             directory_structure (str): The directory structure to summarize.
-            summary_word_length (int): The maximum word length for each summary.
+            short_summary_length (int): The maximum word length for each summary.
 
         Returns:
             dict: The summarized directory structure in JSON format with summaries for each file/folder.
@@ -265,20 +234,23 @@ class DirectorySummarizer:
             # logger.error("Summarization feature requires additional dependencies. Please run `dirmap install-ai` to set it up.")
             return "Error: Summarization feature requires additional dependencies.  Please run `dirmap install-ai` to set it up."
 
-    def summarize_directory_structure_api(self, directory_structure: dict, summary_word_length: int) -> dict:
+    def _summarize_directory_structure_api(self, directory_structure: dict, short_summary_length: int) -> dict:
         """
         Summarizes the directory structure using the OpenAI API.
 
         Args:
             directory_structure (dict): The directory structure to summarize with __keys__.
-            summary_word_length (int): The maximum word length for each summary.
+            short_summary_length (int): The maximum character length for each summary.
 
         Returns:
             dict: The summarized directory structure in JSON format with summaries in __keys__.content.
         """
+        simple_json_structure = directory_structure.to_nested_dict(['type', 'short_summary', 'summary'])
+        tree_structure = TreeStyle.write_structure(directory_structure)
         # Simplify structure for API request
-        simplified_structure = self._simplify_structure_for_api(directory_structure)
-        
+        # simplified_structure = self._simplify_structure_for_api(simple_json_structure)
+        print("\nSimple JSON Structure:")
+        print(simple_json_structure)
         messages = [
             {
                 "role": "system",
@@ -287,10 +259,12 @@ class DirectorySummarizer:
             {
                 "role": "user", 
                 "content": (
-                    "Create a summary of this directory structure. "
-                    "Return a JSON object that matches the input structure but adds a 'short_summary' "
-                    f"field (maximum {summary_word_length} words) to each __keys__.content object.\n\n"
-                    f"Structure to analyze:\n{json.dumps(simplified_structure, indent=2)}"
+                    "Analyze the following directory structure:\n\n"
+                    f"{tree_structure}\n\n"
+                    "Use the following JSON object that matches the input structure to generate "
+                    "`short_summary` fields for each item. Do not modify the structure in any other way. "
+                    f"Write each summary in {short_summary_length} characters or less. Here is the formatted JSON:\n\n"
+                    f"{json.dumps(simple_json_structure, indent=2)}"
                 )
             }
         ]
@@ -305,7 +279,7 @@ class DirectorySummarizer:
 
         try:
             response = self.client.chat.completions.create(
-                model="gpt-3.5-turbo",
+                model="gpt-4o-mini",
                 messages=messages,
                 temperature=0.3,  # Lower temperature for more consistent output
                 max_tokens=2000,
@@ -322,8 +296,9 @@ class DirectorySummarizer:
             
             try:
                 summaries = json.loads(raw_response)
+                print(summaries)
                 logger.info("Successfully parsed API response")
-                return self._merge_summaries(directory_structure, summaries)
+                return summaries
             except json.JSONDecodeError as e:
                 logger.error(f"JSON Parse Error at position {e.pos}: {raw_response[max(0, e.pos-50):e.pos+50]}")
                 return directory_structure
@@ -349,7 +324,8 @@ class DirectorySummarizer:
             if '__keys__' in item:
                 result['__keys__'] = {
                     'type': 'file' if isinstance(item.get('content'), str) else 'directory',
-                    'content': {'short_summary': None}
+                    'short_summary': None,
+                    'content_summary': item.get('summary')
                 }
             
             # Process nested items
@@ -366,50 +342,45 @@ class DirectorySummarizer:
                 
         return simplified
 
-    def _merge_summaries(self, original: dict, summaries: dict) -> dict:
-        """
-        Merges API summaries back into the original structure.
-        Handles None values and nested structures.
-        """
-        logger.debug(f"Original structure: {json.dumps(original, indent=2)[:500]}...")
-        logger.debug(f"Summaries to merge: {json.dumps(summaries, indent=2)[:500]}...")
-        
-        result = copy.deepcopy(original)
-        
-        def merge_recursive(orig: dict, summ: dict):
-            if not isinstance(orig, dict) or not isinstance(summ, dict):
-                return
-                
-            for key, value in summ.items():
-                if key not in orig:
-                    continue
-                    
-                if isinstance(value, dict):
-                    if '__keys__' in value:
-                        # Initialize __keys__ if needed
-                        orig[key].setdefault('__keys__', {})
-                        
-                        # Initialize content if needed
-                        orig[key]['__keys__'].setdefault('content', {})
-                        value['__keys__'].setdefault('content', {})
-                        
-                        # Merge content fields
-                        if value['__keys__'].get('content'):
-                            orig[key]['__keys__']['content'].update(
-                                value['__keys__']['content']
-                            )
-                    
-                    # Recurse into nested structures
-                    merge_recursive(orig[key], value)
-        
-        try:
-            merge_recursive(result, summaries)
-            logger.debug("Successfully merged summaries")
-        except Exception as e:
-            logger.error(f"Error merging summaries: {str(e)}")
-            return original
-            
-        return result
+    # def _merge_summaries(self, original: dict, summaries: dict) -> dict:
+    #     """
+    #     Merges API summaries back into the original structure.
+    #     Handles None values and nested structures.
+    #     """
+    #     result = copy.deepcopy(original)
+
+    #     def merge_recursive(orig: dict, summ: dict):
+    #         if not isinstance(orig, dict) or not isinstance(summ, dict):
+    #             return
+
+    #         for key, value in summ.items():
+    #             if key not in orig:
+    #                 continue
+
+    #             if isinstance(value, dict):
+    #                 # If __keys__ present in summaries, ensure it in orig
+    #                 if '__keys__' in value:
+    #                     orig[key].setdefault('__keys__', {})
+    #                     orig[key]['__keys__'].setdefault('content', {})
+    #                     # Ensure orig[key]['__keys__']['content'] is a dict
+    #                     if orig[key]['__keys__']['content'] is None:
+    #                         orig[key]['__keys__']['content'] = {}
+
+    #                     value['__keys__'].setdefault('content', {})
+    #                     if value['__keys__']['content'] is None:
+    #                         value['__keys__']['content'] = {}
+
+    #                     # Now both content fields are guaranteed to be dicts
+    #                     if isinstance(value['__keys__']['content'], dict) and isinstance(orig[key]['__keys__']['content'], dict):
+    #                         orig[key]['__keys__']['content'].update(value['__keys__']['content'])
+
+    #                 # Recurse into nested structures
+    #                 merge_recursive(orig[key], value)
+
+    #     merge_recursive(result, summaries)
+    #     logger.debug("Successfully merged summaries")
+    #     return result
+
 
 class FileSummarizer:
     """
@@ -429,6 +400,28 @@ class FileSummarizer:
             if not api_token:
                 raise ValueError("API token is not set. Please set the API token in the preferences.")
             self.client = OpenAI(api_key=api_token)
+
+    def summarize_content(self, content: str, max_words: int = 100) -> str:
+        """
+        Summarizes the content using the OpenAI API or local model.
+
+        Args:
+            content (str): The content to summarize.
+
+        Returns:
+            str: The summarized content.
+        """
+        if self.is_local:
+            logger.warning('Local summarization is not implemented yet.')
+            return "Local summarization is not implemented yet."
+        else:
+            # Check content size
+            max_content_length = 5000  # Adjust based on API limits
+            if len(content) > max_content_length:
+                logger.info(f"File is large; summarizing in chunks.")
+                return self._summarize_large_content(content, max_words)
+            else:
+                return self._summarize_api(content, max_words)
 
     def summarize_file(self, file_path: str, max_words: int = 100) -> str:
         """

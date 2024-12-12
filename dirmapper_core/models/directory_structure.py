@@ -108,6 +108,55 @@ class DirectoryStructure:
             structure_dict[item.level].append(item)
         return dict(structure_dict)
     
+    #TODO: There is a bug where not all items are added from the nested dictionary back into the DirectoryStructure
+    def merge_nested_dict(self, nested_dict: dict) -> None:
+        """
+        Merge a nested dictionary with __keys__ back into the DirectoryStructure.
+        Updates existing items with non-null values from the nested dictionary.
+        
+        Args:
+            nested_dict (dict): Nested dictionary with __keys__ containing metadata
+        """
+        def process_dict(current_dict: dict, current_path: str = "") -> None:
+            for key, value in current_dict.items():
+                if not isinstance(value, dict):
+                    continue
+                    
+                # Build the full path for this item
+                path = os.path.join(current_path, key) if current_path else key
+                
+                # If this dict has __keys__, update the corresponding DirectoryItem
+                if '__keys__' in value:
+                    item = self.get_item(path)
+                    if item:
+                        keys_dict = value['__keys__']
+                        
+                        # Update type if present
+                        if keys_dict.get('type') is not None:
+                            item.type = keys_dict['type']
+                        
+                        # Update content if present
+                        if 'content' in keys_dict and keys_dict['content'] is not None:
+                            item.metadata['content'] = keys_dict['content']
+                        
+                        # Update summary if present
+                        if keys_dict.get('summary') is not None:
+                            item.summary = keys_dict['summary']
+                        
+                        # Update short_summary if present
+                        if keys_dict.get('short_summary') is not None:
+                            item.short_summary = keys_dict['short_summary']
+                        
+                        # Update tags if present
+                        if 'tags' in keys_dict and keys_dict['tags'] is not None:
+                            item.tags = keys_dict['tags']
+                
+                # Recursively process nested dictionaries
+                process_dict(value, path)
+        
+        # Start processing from root
+        process_dict(nested_dict)
+
     def to_nested_dict(self, metadata_fields: Optional[List[str]] = None) -> Dict[str, Union[Dict, None]]:
         """
         Convert the structure to a nested dictionary format with metadata under __keys__.
@@ -122,20 +171,22 @@ class DirectoryStructure:
         
         Example:
             {
-                "folder1": {
-                    "file1.txt": {
-                        "size": "1.2MB",
-                        "date_modified": "2021-01-01"
+                'folder1': {
+                    'file1.txt': {
+                        '__keys__': {
+                            'type': 'file',
+                            'summary': 'This is a file',
+                            'tags': ['tag1', 'tag2']
+                        }
                     },
-                    "file2.txt": {
-                        "size": "1.5MB",
-                        "date_modified": "2021-01-02"
-                    }
-                },
-                "folder2": {
-                    "file3.txt": {
-                        "size": "1.8MB",
-                        "date_modified": "2021-01-03"
+                    'subfolder1': {
+                        'file2.txt': {
+                            '__keys__': {
+                                'type': 'file',
+                                'summary': 'This is another file',
+                                'tags': ['tag3', 'tag4']
+                            }
+                        }
                     }
                 }
             }
@@ -184,3 +235,6 @@ class DirectoryStructure:
     
     def __str__(self):
         return self.__repr__()
+    
+    def __len__(self):
+        return len(self.items)
