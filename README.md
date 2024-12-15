@@ -232,62 +232,30 @@ Other allowable styles include `list`, `flat`, and `indentation`.
 ### Summarizing Directory Structure
 You can summarize the directory structure using the `DirectorySummarizer` class. Here is an example:
 ```python
+### Summarizing Directory Structure
+from dirmapper_core.generator.directory_structure_generator import DirectoryStructureGenerator
 from dirmapper_core.ai.summarizer import DirectorySummarizer
-from dirmapper_core.formatter.formatter import JSONFormatter, PlainTextFormatter
-from dirmapper_core.styles.tree_style import TreeStyle
+from dirmapper_core.models.directory_structure import DirectoryStructure
+from dirmapper_core.models.directory_item import DirectoryItem
 
-# Define preferences
-preferences = {
-    "use_local": False,  # Set to False to use API-based summarization
-    "api_token": "your_openai_api_token"
+# Initialize DirectorySummarizer with configuration
+config = {
+    "use_local": False,
+    "api_token": "your_openai_api_token",
+    "summarize_file_content": True,  # Enable file content summarization
+    "max_file_summary_words": 50     # Limit file summaries to 50 words
 }
 
-# Set the format instructions for output
-format_instruction = {
-                'style': TreeStyle(),
-                'length': 10,
-                'max_depth': 5  # Pass max depth to the summarizer
-                # Add other format instructions here
-            }
-# Initialize DirectorySummarizer
-summarizer = DirectorySummarizer(
-    formatter=PlainTextFormatter(),
-    format_instruction= format_instruction,
-    preferences=preferences
-)
+summarizer = DirectorySummarizer(config)
 
-# Summarize the directory structure
-directory_structure = """
-path/to/your/project
-├── .git/
-├── .github/
-│   └── workflows/
-│       └── publish.yml
-├── LICENSE
-├── README.md
-├── dirmapper_core/
-│   ├── __init__.py
-│   ├── ai/
-│   │   └── summarizer.py
-│   ├── data/
-│   ├── formatter/
-│   ├── generator/
-│   ├── ignore/
-│   ├── styles/
-│   ├── utils/
-│   └── writer/
-└── tests/
-    ├── __init__.py
-    ├── conftest.py
-    ├── test_cli_utils.py
-    ├── test_directory_structure_generator.py
-    ├── test_ignore_list_reader.py
-    ├── test_main.py
-    └── test_path_ignorer.py
-"""
+# Create a DirectoryStructure instance
+root_dir = "path/to/root/project"
+dsg = DirectoryStructureGenerator("path/to/root/project")
+structure = dsg.generate(styled = False)
 
-summary = summarizer.summarize(directory_structure)
-print(summary)
+# Generate summaries
+result = summarizer.summarize(structure)
+print(json.dumps(result, indent=2))
 ```
 
 ### Summarizing Files

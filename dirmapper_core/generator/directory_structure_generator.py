@@ -2,9 +2,9 @@
 
 import os
 import sys
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 from dirmapper_core.utils.logger import log_exception, logger, log_ignored_paths
-from dirmapper_core.sort.sorting_strategy import SortingStrategy
+from dirmapper_core.sort.sorting_strategy import NoSortStrategy, SortingStrategy
 from dirmapper_core.ignore.path_ignorer import PathIgnorer
 from dirmapper_core.utils.constants import STYLE_MAP, EXTENSIONS, FORMATTER_MAP
 from dirmapper_core.styles.base_style import BaseStyle
@@ -19,74 +19,79 @@ class DirectoryStructureGenerator:
     
     Attributes:
         root_dir (str): The root directory to map.
-        output (str): The output file to save the directory structure.
         ignorer (PathIgnorer): Object to handle path ignoring.
-        sort_order (str): The order to sort the directory structure ('asc', 'desc', or None).
+        sorting_strategy (SortingStrategy): The order to sort the directory structure.
         style (BaseStyle): The style to use for the directory structure output.
         formatter (Formatter): The formatter to use for the directory structure output.
-        sorting_strategy (SortingStrategy): The strategy to use for sorting.
         max_depth (int): The maximum depth to traverse in the directory structure.
     """
-    def __init__(self, root_dir: str, output: str, ignorer: PathIgnorer, sorting_strategy: SortingStrategy, case_sensitive: bool = True, style: BaseStyle = None, formatter: Formatter = None, max_depth: int = 5):
+    def __init__(self, root_dir: str, ignorer: Optional[PathIgnorer] = None, sorting_strategy: SortingStrategy = NoSortStrategy(), style: Optional[BaseStyle] = None, formatter: Optional[Formatter] = None, max_depth: int = 5):
         self.root_dir = os.path.expanduser(root_dir)
-        self.output = output
         self.ignorer = ignorer
         self.sorting_strategy = sorting_strategy
         self.style = style if style else STYLE_MAP['tree']
         self.formatter = formatter if formatter else FORMATTER_MAP['plain']()
         self.max_depth = max_depth
 
-        if output:
-            self._validate_file_extension()
+        logger.debug(f"Directory structure generator initialized for root dir: {root_dir}, style: {self.style.__class__.__name__}, formatter: {self.formatter.__class__.__name__}, max depth: {max_depth}")
 
-        logger.debug(f"Directory structure generator initialized for root dir: {root_dir}, output file: {output}, style: {self.style.__class__.__name__}, formatter: {self.formatter.__class__.__name__}")
-
-    def generate(self, styled: bool = True, **kwargs) -> str | dict | DirectoryStructure:
+    def generate(self, file_output: Optional[str] = None, styled: bool = True, **kwargs) -> str | dict | DirectoryStructure:
         """
         Generate the directory structure and returns it as a string or JSON template depending on the DirectoryStructureGenerator selected `style` input.
         
         Args:
+            file_output (str): The file to save the directory structure to.
             styled (bool): Whether to return the styled output (True) or the raw output (False).
 
         Raises:
             NotADirectoryError: If the root directory is not valid.
             Exception: If any other error occurs during generation.
         """
-        # try:
-        if not self._verify_path(self.root_dir):
-            raise NotADirectoryError(f'"{self.root_dir}" is not a valid path to a directory.')
-        logger.info(f"Generating directory structure...")
+        try:
+            if not self._verify_path(self.root_dir):
+                raise NotADirectoryError(f'"{self.root_dir}" is not a valid path to a directory.')
+            logger.info(f"Generating directory structure...")
 
-        # Start with the root directory
-        structure = DirectoryStructure()
-        root_name = os.path.abspath(self.root_dir)  # Get the absolute path
-        structure.add_item(DirectoryItem(root_name, 0, root_name))
+            # Start with the root directory
+            structure = DirectoryStructure()
+            root_name = os.path.abspath(self.root_dir)  # Get the absolute path
+            structure.add_item(DirectoryItem(root_name, 0, root_name))
 
-        sorted_structure = self._build_sorted_structure(self.root_dir, level=1)
-        structure.items.extend(sorted_structure.to_list())
-        
-        # Format the directory structure based on the selected style
-        if styled:
-            instructions = {
-                'style': self.style,
-                'root_dir': self.root_dir,  # Include root_dir in instructions
-            }
-            instructions.update(kwargs)  # Include any additional kwargs in instructions
-            formatted_structure = self.formatter.format(structure, instructions) # Return the formatted structure as a string (or dict if JSON)
-        else:
-            formatted_structure = structure # Return the raw structure as DirectoryStructure object
+            sorted_structure = self._build_sorted_structure(self.root_dir, level=1)
+            structure.items.extend(sorted_structure.to_list())
+            
+            # Format the directory structure based on the selected style
+            if styled:
+                instructions = {
+                    'style': self.style,
+                    'root_dir': self.root_dir,  # Include root_dir in instructions
+                }
+                instructions.update(kwargs)  # Include any additional kwargs in instructions
+                formatted_structure = self.formatter.format(structure, instructions) # Return the formatted structure as a string (or dict if JSON)
+            else:
+                formatted_structure = structure # Return the raw structure as DirectoryStructure object
 
-        # Log the ignored paths after generating the directory structure
-        log_ignored_paths(self.ignorer)
+            # Log the ignored paths after generating the directory structure
+            log_ignored_paths(self.ignorer)
 
-        return formatted_structure
+            if file_output:
+                self._validate_file_extension()
+                with open(file_output, 'w') as f:
+                    f.write(formatted_structure)
+                logger.info(f"Directory structure saved to {file_output}")
 
-        # except NotADirectoryError as e:
-        #     log_exception(os.path.basename(__file__), e)
-        #     sys.exit(1)
-        # except Exception as e:
-        #     log_exception(os.path.basename(__file__), e)
-        #     print(f"Error: {e}")
+
+            return formatted_structure
+
+        except NotADirectoryError as e:
+            log_exception(os.path.basename(__file__), e)
+            sys.exit(1)
+        except ValueError as e:
+            log_exception(os.path.basename(__file__), e)
+            sys.exit(1)
+        except Exception as e:
+            log_exception(os.path.basename(__file__), e)
+            sys.exit(1)
 
     def _build_sorted_structure(self, current_dir: str, level: int) -> DirectoryStructure:
         """
@@ -123,17 +128,20 @@ class DirectoryStructureGenerator:
 
         return structure
 
-    def _validate_file_extension(self) -> None:
+    def _validate_file_extension(self, output) -> None:
         """
         Validate the output file extension based on the selected style.
         
+        Args:
+            output (str): The output file to validate.
+
         Raises:
             ValueError: If the output file extension does not match the expected extension for the selected style.
         """
         style_name = self.style.__class__.__name__.lower().replace('style', '')
         expected_extension = EXTENSIONS.get(style_name, '.txt')
-        if not self.output.endswith(expected_extension):
-            raise ValueError(f"Output file '{self.output}' does not match the expected extension for style '{self.style.__class__.__name__}': {expected_extension}")
+        if not output.endswith(expected_extension):
+            raise ValueError(f"Output file '{output}' does not match the expected extension for style '{self.style.__class__.__name__}': {expected_extension}")
 
     def _verify_path(self, path: str = None) -> bool:
         """

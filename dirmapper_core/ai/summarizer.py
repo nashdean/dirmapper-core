@@ -58,30 +58,21 @@ class DirectorySummarizer:
             Result:
                 {
                     "dir1/": {
-                        "__keys__": {
-                            "meta": {
-                                "type": "folder",
-                                "relative_path": "dir1"
-                            },
-                            "content": {
-                                "short_summary": "Directory containing task files",
-                                "content_summary": null
-                            }
-                        },
                         "file1.txt": {
-                            "__keys__": {
-                                "meta": {
-                                    "type": "file",
-                                    "relative_path": "dir1/file1.txt"
-                                },
-                                "content": {
-                                    "short_summary": "Contains data for first task",
-                                    "content_summary": "Detailed summary of file content"
-                                }
+                            "summary": "This file contains the data for the first task.",
+                            "short_summary": "This file contains the data for the first task."
+                        },
+                        "file2.txt": {
+                            "summary": "This file contains the data for the second task.",
+                            "short_summary": "This file contains the data for the second task."
+                        },
+                        "subdir1/": {
+                            "file3.txt": {
+                                "summary": "This file contains the data for the third task.",
+                                "short_summary": "This file contains the data for the third task."
                             }
                         }
                     }
-                }
         """
         # Convert DirectoryStructure to nested dictionary with __keys__
         # nested_dict = directory_structure.to_nested_dict()
@@ -99,7 +90,8 @@ class DirectorySummarizer:
         summarized_structure = self._summarize_api(directory_structure, meta_data)
 
         # Merge summaries back into the original structure
-        directory_structure.merge_nested_dict(summarized_structure)
+        if isinstance(summarized_structure, dict):
+            directory_structure.merge_nested_dict(summarized_structure)
 
         return summarized_structure
 
@@ -120,7 +112,7 @@ class DirectorySummarizer:
         if self.summarize_file_content:
             self._preprocess_structure(directory_structure)
         
-        print("Preprocessed structure:", directory_structure)
+        logger.debug("Preprocessed structure:", directory_structure)
         # Create copy for API request without file content
         api_structure = copy.deepcopy(directory_structure)
 
@@ -192,9 +184,9 @@ class DirectorySummarizer:
             if item.metadata.get('type') == 'file' and self._should_summarize_file(item.path):
                 content = item.content
                 if content:
-                    print("Summarizing content for:", item.path)
+                    logger.debug("Summarizing content for:", item.path)
                     summary = self.file_summarizer.summarize_content(content, self.max_file_summary_words)
-                    print("Summary:", summary)
+                    logger.debug("Summary:", summary)
                     item.summary = summary
 
     def _should_summarize_file(self, file_path: str) -> bool:
@@ -247,10 +239,8 @@ class DirectorySummarizer:
         """
         simple_json_structure = directory_structure.to_nested_dict(['type', 'short_summary', 'summary'])
         tree_structure = TreeStyle.write_structure(directory_structure)
-        # Simplify structure for API request
-        # simplified_structure = self._simplify_structure_for_api(simple_json_structure)
-        print("\nSimple JSON Structure:")
-        print(simple_json_structure)
+        logger.debug("Simple JSON Structure:", json.dumps(simple_json_structure, indent=2))
+
         messages = [
             {
                 "role": "system",
@@ -296,7 +286,7 @@ class DirectorySummarizer:
             
             try:
                 summaries = json.loads(raw_response)
-                print(summaries)
+                logger.debug("Summaries in _summarize_dir_struct_api:", json.dumps(summaries, indent=2))
                 logger.info("Successfully parsed API response")
                 return summaries
             except json.JSONDecodeError as e:
@@ -310,77 +300,6 @@ class DirectorySummarizer:
         finally:
             stop_logging.set()
             logging_thread.join()
-
-    def _simplify_structure_for_api(self, structure: dict) -> dict:
-        """Creates a simpler version of the structure for the API."""
-        # Only include essential information to reduce token usage
-        simplified = {}
-        
-        def simplify_item(item: dict) -> dict:
-            if not isinstance(item, dict):
-                return item
-                
-            result = {}
-            if '__keys__' in item:
-                result['__keys__'] = {
-                    'type': 'file' if isinstance(item.get('content'), str) else 'directory',
-                    'short_summary': None,
-                    'content_summary': item.get('summary')
-                }
-            
-            # Process nested items
-            for key, value in item.items():
-                if key != '__keys__' and isinstance(value, dict):
-                    result[key] = simplify_item(value)
-                    
-            return result
-        
-        # Process top level items
-        for key, value in structure.items():
-            if isinstance(value, dict):
-                simplified[key] = simplify_item(value)
-                
-        return simplified
-
-    # def _merge_summaries(self, original: dict, summaries: dict) -> dict:
-    #     """
-    #     Merges API summaries back into the original structure.
-    #     Handles None values and nested structures.
-    #     """
-    #     result = copy.deepcopy(original)
-
-    #     def merge_recursive(orig: dict, summ: dict):
-    #         if not isinstance(orig, dict) or not isinstance(summ, dict):
-    #             return
-
-    #         for key, value in summ.items():
-    #             if key not in orig:
-    #                 continue
-
-    #             if isinstance(value, dict):
-    #                 # If __keys__ present in summaries, ensure it in orig
-    #                 if '__keys__' in value:
-    #                     orig[key].setdefault('__keys__', {})
-    #                     orig[key]['__keys__'].setdefault('content', {})
-    #                     # Ensure orig[key]['__keys__']['content'] is a dict
-    #                     if orig[key]['__keys__']['content'] is None:
-    #                         orig[key]['__keys__']['content'] = {}
-
-    #                     value['__keys__'].setdefault('content', {})
-    #                     if value['__keys__']['content'] is None:
-    #                         value['__keys__']['content'] = {}
-
-    #                     # Now both content fields are guaranteed to be dicts
-    #                     if isinstance(value['__keys__']['content'], dict) and isinstance(orig[key]['__keys__']['content'], dict):
-    #                         orig[key]['__keys__']['content'].update(value['__keys__']['content'])
-
-    #                 # Recurse into nested structures
-    #                 merge_recursive(orig[key], value)
-
-    #     merge_recursive(result, summaries)
-    #     logger.debug("Successfully merged summaries")
-    #     return result
-
 
 class FileSummarizer:
     """
@@ -504,7 +423,8 @@ class FileSummarizer:
         # Prepare the prompt
         messages = [
             {"role": "system", "content": "You are a helpful assistant that summarizes content into markdown format."},
-            {"role": "user", "content": f"Please provide a concise summary (max {max_words} words) of the following content in markdown format:\n\n{content}"}
+            {"role": "user", "content": f"Please provide a concise summary (max {max_words} words) of the following content in markdown format removing the wrapper"
+                f" '```markdown' and '```' block. Here is the content :\n\n{content}"}
         ]
 
         logger.info(f"Sending request to OpenAI API for summarization.")
@@ -525,6 +445,7 @@ class FileSummarizer:
                 return ""
 
             summary = response.choices[0].message.content.strip()
+            # summary = summary.replace("```markdown\n", "").replace("```", "")
             return summary
         except AuthenticationError as e:
             logger.error(f"Authentication error: {e}")

@@ -20,17 +20,27 @@ class DirectoryStructure:
 
     def get_item(self, path: str) -> Optional[DirectoryItem]:
         """
-        Get a directory item by path.
+        Get a directory item by path. Supports both full and relative paths.
+        Matches paths as strings without relying on OS path operations.
 
         Args:
-            path (str): The path of the directory item to get.
+            path (str): The path to search for (can be full path or just name)
 
         Returns:
             Optional[DirectoryItem]: The directory item if found, None otherwise.
         """
+        # Try exact match first
         for item in self.items:
             if item.path == path:
                 return item
+                
+        # Try basename match if exact match fails
+        search_name = path.rstrip('/').split('/')[-1]  # Simple path splitting
+        for item in self.items:
+            item_name = item.path.rstrip('/').split('/')[-1]
+            if item_name == search_name:
+                return item
+                
         return None
     
     def get_items(self, level: int) -> List[DirectoryItem]:
@@ -124,32 +134,33 @@ class DirectoryStructure:
                     
                 # Build the full path for this item
                 path = os.path.join(current_path, key) if current_path else key
-                
+
                 # If this dict has __keys__, update the corresponding DirectoryItem
                 if '__keys__' in value:
                     item = self.get_item(path)
+
                     if item:
                         keys_dict = value['__keys__']
                         
                         # Update type if present
-                        if keys_dict.get('type') is not None:
-                            item.type = keys_dict['type']
-                        
+                        if 'type' in keys_dict and keys_dict['type'] is not None:
+                            item.metadata['type'] = keys_dict['type']
+
                         # Update content if present
                         if 'content' in keys_dict and keys_dict['content'] is not None:
                             item.metadata['content'] = keys_dict['content']
-                        
+
                         # Update summary if present
-                        if keys_dict.get('summary') is not None:
-                            item.summary = keys_dict['summary']
-                        
+                        if 'summary' in keys_dict and keys_dict['summary'] is not None:
+                            item.metadata['summary'] = keys_dict['summary']
+
                         # Update short_summary if present
-                        if keys_dict.get('short_summary') is not None:
-                            item.short_summary = keys_dict['short_summary']
-                        
+                        if 'short_summary' in keys_dict and keys_dict['short_summary'] is not None:
+                            item.metadata['short_summary'] = keys_dict['short_summary']
+
                         # Update tags if present
                         if 'tags' in keys_dict and keys_dict['tags'] is not None:
-                            item.tags = keys_dict['tags']
+                            item.metadata['tags'] = keys_dict['tags']
                 
                 # Recursively process nested dictionaries
                 process_dict(value, path)
