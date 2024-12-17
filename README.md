@@ -237,6 +237,7 @@ from dirmapper_core.generator.directory_structure_generator import DirectoryStru
 from dirmapper_core.ai.summarizer import DirectorySummarizer
 from dirmapper_core.models.directory_structure import DirectoryStructure
 from dirmapper_core.models.directory_item import DirectoryItem
+from dirmapper_core.styles.tree_style import TreeStyle
 
 # Initialize DirectorySummarizer with configuration
 config = {
@@ -256,7 +257,12 @@ structure = dsg.generate(styled = False)
 # Generate summaries
 result = summarizer.summarize(structure)
 print(json.dumps(result, indent=2))
+
+# Nicely format your short summaries to the terminal
+print(TreeStyle.write_structure_with_short_summaries(structure))
 ```
+
+In the above example, you see that the __*result*__ from the `DirectorySummarizer` is a dict for easy JSON convertability. If you want to view the directory in a *tree* style, you can use the `write_structure_with_short_summaries` method which takes a DirectoryStructure object.
 
 ### Summarizing Files
 You can summarize individual files using the `FileSummarizer` class. Here is an example.

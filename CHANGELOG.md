@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.2.1] - 2024-12-17
+**No Breaking Changes. Safe to Bump**
+### Directory Parser
+- Renamed `parse_template` to `parse_from_template_file`. Old method still valid until **v0.3.0**
+- Renamed `parse_from_directory_structure` to `parse_from_style`. Old method still valid until **v0.3.0**.
+- Added `template_to_directory_structure` method to convert templates to DirectoryStructure objects
+
+### DirectoryItem
+- Changed order in which how Metadata appears in dict
+
+### Style Changes
+- Changed the value for the meta field `type` from `folder` to `directory` in JSONStyle to match the expected values of DirectoryItem class
+- Added `write_structure_with_short_summaries` method to TreeStyle that formats `short_summary` field that is generated from the DirectorySummarizer next to each file/folder branch as a nicely formatted comment delimited by `#`
+    - Formats nicely to the console/terminal for easy human readability
+    - **NOTE**: Function may be renamed as it gets extended to other styles in the future
+
 ## [0.2.0] - 2024-12-15
 **No Breaking Changes. Safe to Bump**
 ### Directory Writer
