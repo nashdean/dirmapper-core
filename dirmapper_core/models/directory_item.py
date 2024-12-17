@@ -13,7 +13,7 @@ class DirectoryItem:
         self.path = path
         self.level = level
         self.name = name
-        self.metadata = metadata or {'summary': None, 'content': None, 'short_summary': None, 'tags': []}
+        self.metadata = metadata or {'type': None, 'content': None, 'summary': None, 'short_summary': None, 'tags': []}
 
         self._init_empty_metadata()
 

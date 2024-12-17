@@ -8,7 +8,7 @@ from dirmapper_core.utils.logger import logger
 
 def write_template(template_path: str, structure: dict | str, create_missing_folders: bool = True) -> None:
     """
-    Write the generated directory structure to a template file.
+    Write the generated directory structure to a template file to your OS.
 
     Args:
         template_path (str): The path to write the template file to.
@@ -29,7 +29,7 @@ def write_template(template_path: str, structure: dict | str, create_missing_fol
 
         if isinstance(structure, str):
             tp = TemplateParser()
-            structure = tp.parse_from_directory_structure(structure)
+            structure = tp.parse_from_style(structure)
 
         with open(template_path, 'w') as template_file:
             if template_path.endswith('.yaml') or template_path.endswith('.yml'):

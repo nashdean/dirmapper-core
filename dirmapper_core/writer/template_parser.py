@@ -1,9 +1,12 @@
+from typing import Optional
 import yaml
 import json
 import os
 import re
 import datetime
 
+from dirmapper_core.models.directory_item import DirectoryItem
+from dirmapper_core.models.directory_structure import DirectoryStructure
 from dirmapper_core.styles.base_style import BaseStyle
 from dirmapper_core.styles.flat_list_style import FlatListStyle
 from dirmapper_core.styles.indentation_style import IndentationStyle
@@ -25,9 +28,61 @@ class TemplateParser:
         """
         self.template_file = template_file
 
+    def template_to_directory_structure(self, template: dict) -> DirectoryStructure:
+        """
+        Convert a template to a DirectoryStructure object.
+
+        Args:
+            template (dict): The template to convert.
+
+        Returns:
+            DirectoryStructure: The converted directory structure.
+        """
+        def process_dict(current_dict: dict, current_path: str = "", level: int = 0) -> None:
+            for key, value in current_dict.items():
+                if not isinstance(value, dict):
+                    continue
+
+                # Build the full path for this item
+                key = key.rstrip('/')  # Remove trailing slash
+                path = os.path.join(current_path, key) if current_path else key
+
+                # If this dict has __keys__, create a DirectoryItem
+                if '__keys__' in value:
+                    keys_dict = value['__keys__']
+                    metadata = {
+                        'type': keys_dict['meta'].get('type', 'file' if '.' in key else 'directory'),
+                        'content': keys_dict['content'].get('content', None),
+                        'summary': keys_dict['content'].get('content_summary'),
+                        'short_summary': keys_dict['content'].get('short_summary'),
+                        'tags': keys_dict['meta'].get('tags', [])
+                    }
+                    item = DirectoryItem(path, level, key, metadata)
+                    structure.add_item(item)
+
+                # Recursively process nested dictionaries
+                process_dict(value, path, level + 1)
+
+        structure = DirectoryStructure()
+        process_dict(template, level=-1)
+        return structure
+    
     def parse_template(self) -> dict:
         """
+        Depreciated method -- will be removed in v0.3.0. Use parse_from_template_file() instead.
+        """
+        logger.warning("The parse_template() method is deprecated and will be removed in v0.3.0. Use parse_from_template_file() instead.")
+        if self.template_file:
+            return self.parse_template_file()
+        else:
+            raise ValueError("No template file provided")
+
+    def parse_from_template_file(self, template_file:Optional[str]=None) -> dict:
+        """
         Parse the template file and return it as a dictionary.
+
+        Args:
+            template_file (Optional[str]): The path to the template file to parse.
 
         Returns:
             dict: The parsed template as a dictionary.
@@ -83,29 +138,41 @@ class TemplateParser:
                 }
             
         """
-        with open(self.template_file, 'r') as f:
-            if self.template_file.endswith('.yaml') or self.template_file.endswith('.yml'):
-                template = yaml.safe_load(f)
-            elif self.template_file.endswith('.json'):
-                template = json.load(f)
-            else:
-                raise ValueError("Unsupported template file format. Please use YAML or JSON.")
-        
-        # Add author, creation_date, and last_modified to meta if not present
-        if 'meta' not in template:
-            template['meta'] = {}
-        if 'author' not in template['meta']:
-            template['meta']['author'] = os.getlogin()
-        if 'source' not in template['meta']:
-            template['meta']['source'] = 'dirmapper'
-        if 'creation_date' not in template['meta']:
-            template['meta']['creation_date'] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        if 'last_modified' not in template['meta']:
-            template['meta']['last_modified'] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        try:
+            if not self.template_file and not template_file:
+                raise ValueError("No template file provided.")
+            if template_file:
+                self.template_file = template_file
+                logger.info(f"Set template file to {self.template_file}")
 
-        # Validate the template
-        self.validate_template(template)
-        
+            with open(self.template_file, 'r') as f:
+                if self.template_file.endswith('.yaml') or self.template_file.endswith('.yml'):
+                    template = yaml.safe_load(f)
+                elif self.template_file.endswith('.json'):
+                    template = json.load(f)
+                else:
+                    raise ValueError("Unsupported template file format. Please use YAML or JSON.")
+            
+            # Add author, creation_date, and last_modified to meta if not present
+            if 'meta' not in template:
+                template['meta'] = {}
+            if 'author' not in template['meta']:
+                template['meta']['author'] = os.getlogin()
+            if 'source' not in template['meta']:
+                template['meta']['source'] = 'dirmapper'
+            if 'creation_date' not in template['meta']:
+                template['meta']['creation_date'] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            if 'last_modified' not in template['meta']:
+                template['meta']['last_modified'] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+            # Validate the template
+            self.validate_template(template)
+            
+            logger.info(f"Successfully parsed template from {self.template_file}")
+        except ValueError as e:
+            logger.error(f"Error parsing template from {self.template_file}: {e}")
+            raise
+
         return template
 
     def validate_template(self, template: dict) -> None:
@@ -154,7 +221,14 @@ class TemplateParser:
     
     def parse_from_directory_structure(self, structure_str: str, existing_content:bool=False, generate_content:bool=False) -> dict:
         """
-        Parse the styled directory structure string and return it as a dictionary.
+        Depreciated method -- will be removed in v0.3.0. Use parse_from_style() instead.
+        """
+        logger.warning("The parse_from_directory_structure() method is deprecated and will be removed in v0.3.0. Use parse_from_style() instead.")
+        return self.parse_from_style(structure_str, existing_content, generate_content)
+
+    def parse_from_style(self, structure_str: str, existing_content:bool=False, generate_content:bool=False) -> dict:
+        """
+        Parse the styled directory structure string and return it as a formatted Template dictionary object.
 
         Args:
             structure_str (str): The directory structure string to parse.
@@ -176,7 +250,7 @@ class TemplateParser:
             parsed_structure =
             {
                 "meta": {
-                    "version": "1.1",
+                    "version": "2.0",
                     "source": "dirmapper",
                     "license": "No license specified",
                     "root_path": "path/to/root",

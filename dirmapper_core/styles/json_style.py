@@ -155,7 +155,7 @@ class JSONStyle(BaseStyle):
             relative_path = os.path.relpath(path, start=root_path)
 
             return {
-                "type": "folder" if is_dir else "file",
+                "type": "directory" if is_dir else "file",
                 "relative_path": relative_path,
                 "creation_date": creation_date,
                 "last_modified": last_modified,
@@ -165,7 +165,7 @@ class JSONStyle(BaseStyle):
             }
         except PermissionError:
             return {
-                "type": "folder" if is_dir else "file",
+                "type": "directory" if is_dir else "file",
                 "relative_path": os.path.relpath(path, start=root_path),
                 "creation_date": "permission_denied",
                 "last_modified": "permission_denied",
@@ -175,7 +175,7 @@ class JSONStyle(BaseStyle):
             }
         except FileNotFoundError:
             return {
-                "type": "folder" if is_dir else "file",
+                "type": "directory" if is_dir else "file",
                 "relative_path": os.path.relpath(path, start=root_path),
                 "creation_date": "unknown",
                 "last_modified": "unknown",
