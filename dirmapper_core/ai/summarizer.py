@@ -321,18 +321,28 @@ class FileSummarizer:
                 raise ValueError("API token is not set. Please set the API token in the preferences.")
             self.client = OpenAI(api_key=api_token)
 
-    def summarize_content(self, content: str, max_words: int = 100, reference: Optional[str] = None) -> str:
+    def summarize_content(self, item: DirectoryItem, max_words: int = 100, force_refresh: bool = False) -> str:
         """
         Summarizes the content using the OpenAI API or local model.
 
         Args:
-            content (str): The content to summarize.
+            item (DirectoryItem): The content to summarize.
             max_words (int): The maximum number of words for the summary.
-            reference (Optional[str]): The reference string for the content. Used for logging.
+            force_refresh (bool): Whether to force refresh the cache.
 
         Returns:
             str: The summarized content.
         """
+        content_hash = item.content_hash
+
+        content = item.content
+        if content is None:
+            return ""
+
+        if not force_refresh and item.summary and item.content_hash == content_hash:
+            logger.info(f"Using cached summary for {item.name}")
+            return item.summary
+        
         if self.is_local:
             logger.warning('Local summarization is not implemented yet.')
             return "Local summarization is not implemented yet."
@@ -340,10 +350,14 @@ class FileSummarizer:
             # Check content size
             max_content_length = 5000  # Adjust based on API limits
             if len(content) > max_content_length:
-                logger.info(f"File is large; summarizing in chunks. Summarizing {reference or 'content'}...")
-                return self._summarize_large_content(content, max_words)
+                logger.info(f"File is large; summarizing in chunks. Summarizing {item.name or 'content'}...")
+                summary = self._summarize_large_content(content, max_words)
             else:
-                return self._summarize_api(content, max_words, reference)
+                summary = self._summarize_api(content, max_words, item.name)
+            
+            item.summary = summary
+            item.content_hash = content_hash  # Update the hash in the item
+            return summary
 
     def summarize_file(self, file_path: str, max_words: int = 100, reference: Optional[str]=None) -> str:
         """
