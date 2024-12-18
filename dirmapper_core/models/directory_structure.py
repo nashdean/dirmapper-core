@@ -43,6 +43,24 @@ class DirectoryStructure:
                 
         return None
     
+    def get_files(self) -> List[DirectoryItem]:
+        """
+        Get all items that are of type 'file'.
+
+        Returns:
+            List[DirectoryItem]: The file items.
+        """
+        return [item for item in self.items if item.type == 'file']
+    
+    def get_directories(self) -> List[DirectoryItem]:
+        """
+        Get all items that are of type 'directory'.
+
+        Returns:
+            List[DirectoryItem]: The directory items.
+        """
+        return [item for item in self.items if item.type == 'directory']
+    
     def get_items(self, level: int) -> List[DirectoryItem]:
         """
         Get all directory items at a specified level.
