@@ -2,12 +2,16 @@
 
 ## [0.2.2] - 2024-12-17
 **No Breaking Changes. Safe to Bump**
+### DirectoryItem Class
+- Add `content_hash` to detect changes to file content
+
 ### DirectoryStructure Class
 - Added `get_files()` method to return a list of DirectoryItems that are all of metadata type `file`
 - Added `get_directories()` method to return a list of DirectoryItems that are all of metadata type `directory`
 
 ### Summarization
 - Added more detailed `INFO` logs including directory size and files being summarized (optional argument)
+- Cache summaries by checking if the DirectoryItem's `content_hash` has changed
 
 
 ## [0.2.1] - 2024-12-17
