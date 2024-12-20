@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.2.2] - 2024-12-17
+## [0.2.2] - Unreleased
 **No Breaking Changes. Safe to Bump**
 ### DirectoryItem Class
 - Add `content_hash` to detect changes to file content
@@ -8,6 +8,15 @@
 ### DirectoryStructure Class
 - Added `get_files()` method to return a list of DirectoryItems that are all of metadata type `file`
 - Added `get_directories()` method to return a list of DirectoryItems that are all of metadata type `directory`
+- Improved `get_files()` method to handle lists of strings for exclusions or inclusions by converting them into `IgnorePattern` objects
+- Added error handling and logging for `get_files()` method
+
+### PathIgnorer Class
+- Refactored to manage ignoring patterns without focusing on root directories
+- Removed root directory specific logic
+
+### Logger
+- Updated `log_ignored_paths()` method to show the total overall ignored files and folders instead of just the root
 
 ### Summarization
 - Added more detailed `INFO` logs including directory size and files being summarized (optional argument)

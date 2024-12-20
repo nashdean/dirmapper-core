@@ -65,10 +65,13 @@ def log_ignored_paths(ignorer: Type["PathIgnorer"]) -> None:
     Args:
         ignorer (PathIgnorer): The PathIgnorer object to log ignored paths from.
     """
-    root_counts = ignorer.get_root_ignored_counts()
-    root_directories = ignorer.get_root_directories()
-    for root_dir in root_directories:
-        logger.info(f"Ignoring {root_counts[root_dir]} paths in root ignored folder '{root_dir}'")
+    ignore_counts = ignorer.get_ignore_counts()
+    total_ignored = sum(ignore_counts.values())
+    
+    for directory, count in ignore_counts.items():
+        logger.info(f"Ignoring {count} paths in directory '{directory}'")
+    
+    logger.info(f"Total ignored paths: {total_ignored}")
 
 def log_periodically(custom_message: str, time_interval: int, include_time: bool = True) -> None:
     """

@@ -3,7 +3,9 @@
 from collections import defaultdict
 import os
 from typing import List, Dict, Optional, Union
+from dirmapper_core.ignore.ignore_list_reader import IgnorePattern
 from dirmapper_core.models.directory_item import DirectoryItem
+from dirmapper_core.utils.logger import logger
 
 class DirectoryStructure:
     """
@@ -43,15 +45,37 @@ class DirectoryStructure:
                 
         return None
     
-    def get_files(self) -> List[DirectoryItem]:
+    def get_files(self, exclusions: Optional[Union[List[IgnorePattern], List[str]]] = None, inclusions: Optional[Union[List[IgnorePattern], List[str]]] = None) -> List[DirectoryItem]:
         """
-        Get all items that are of type 'file'.
+        Get all items that are of type 'file', optionally excluding or including certain patterns.
+
+        Args:
+            exclusions (Optional[Union[List[IgnorePattern], List[str]]]): List of patterns or strings to exclude.
+            inclusions (Optional[Union[List[IgnorePattern], List[str]]]): List of patterns or strings to include.
 
         Returns:
             List[DirectoryItem]: The file items.
         """
-        return [item for item in self.items if item.type == 'file']
-    
+        try:
+            if exclusions and all(isinstance(e, str) for e in exclusions):
+                exclusions = [IgnorePattern(pattern=e) for e in exclusions]
+            
+            if inclusions and all(isinstance(i, str) for i in inclusions):
+                inclusions = [IgnorePattern(pattern=i) for i in inclusions]
+
+            files = [item for item in self.items if item.type == 'file']
+            
+            if exclusions:
+                files = [item for item in files if not any(pattern.matches(item.path) for pattern in exclusions)]
+            
+            if inclusions:
+                files = [item for item in files if any(pattern.matches(item.path) for pattern in inclusions)]
+            
+            return files
+        except Exception as e:
+            logger.error(f"Error in get_files: {e}")
+            return []
+
     def get_directories(self) -> List[DirectoryItem]:
         """
         Get all items that are of type 'directory'.
@@ -67,6 +91,9 @@ class DirectoryStructure:
         
         Args:
             level (int): The level to get directory items from.
+        
+        Returns:
+            List[DirectoryItem]: The directory items at the specified level.
         """
         return [item for item in self.items if item.level == level]
     

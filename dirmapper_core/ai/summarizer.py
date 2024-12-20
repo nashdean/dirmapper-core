@@ -74,9 +74,6 @@ class DirectorySummarizer:
                         }
                     }
         """
-        # Convert DirectoryStructure to nested dictionary with __keys__
-        # nested_dict = directory_structure.to_nested_dict()
-        
         if self.is_local:
             logger.warning('Localized summary functionality under construction. Set preferences to use the api by setting `is_local` to False.')
             return {}
@@ -180,15 +177,13 @@ class DirectorySummarizer:
             structure (DirectoryStructure): The directory structure to preprocess
         """
         for item in structure.items:
-            
+            # Compute content hash for all files
+            content_hash = item.content_hash
+
             # Summarize content if it's a file
             if item.metadata.get('type') == 'file' and self._should_summarize_file(item.path):
-                content = item.content
-                if content:
-                    logger.debug("Summarizing content for:", item.path)
-                    summary = self.file_summarizer.summarize_content(content, self.max_file_summary_words, item.name)
-                    logger.debug("Summary:", summary)
-                    item.summary = summary
+                summary = self.file_summarizer.summarize_content(item, self.max_file_summary_words)
+                item.summary = summary
 
     def _should_summarize_file(self, file_path: str) -> bool:
         allowed_extensions = ['.py', '.md', '.txt']
@@ -260,7 +255,7 @@ class DirectorySummarizer:
             }
         ]
 
-        logger.info("Sending request to API for summarization")
+        logger.info("Sending request to API for summarization for Directory Structure...")
         stop_logging.clear()
         logging_thread = threading.Thread(
             target=log_periodically, 
@@ -333,16 +328,19 @@ class FileSummarizer:
         Returns:
             str: The summarized content.
         """
+        # Compute content hash
         content_hash = item.content_hash
 
+        # Get content
         content = item.content
         if content is None:
             return ""
 
+        # Check if the file should be summarized
         if not force_refresh and item.summary and item.content_hash == content_hash:
             logger.info(f"Using cached summary for {item.name}")
             return item.summary
-        
+
         if self.is_local:
             logger.warning('Local summarization is not implemented yet.')
             return "Local summarization is not implemented yet."
