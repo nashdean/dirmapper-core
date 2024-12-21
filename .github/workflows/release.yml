@@ -22,21 +22,21 @@ jobs:
           VERSION=$(python -c "import toml; print(toml.load('pyproject.toml')['project']['version'])")
           echo "VERSION=$VERSION" >> $GITHUB_ENV
 
-      - name: Check if tag exists
-        id: check_tag
+      - name: Check if release exists
+        id: check_release
         run: |
-          TAG_EXISTS=$(git tag -l "v${{ env.VERSION }}")
-          if [ -z "$TAG_EXISTS" ]; then
-            echo "Tag does not exist"
-            echo "TAG_EXISTS=false" >> $GITHUB_ENV
+          RELEASE_EXISTS=$(gh release view "v${{ env.VERSION }}" --json tagName --jq '.tagName' || echo "not_found")
+          if [ "$RELEASE_EXISTS" == "not_found" ]; then
+            echo "Release does not exist"
+            echo "RELEASE_EXISTS=false" >> $GITHUB_ENV
           else
-            echo "Tag already exists"
-            echo "TAG_EXISTS=true" >> $GITHUB_ENV
+            echo "Release already exists"
+            echo "RELEASE_EXISTS=true" >> $GITHUB_ENV
           fi
 
       - name: Extract release notes from CHANGELOG.md
         id: extract_notes
-        if: env.TAG_EXISTS == 'false'
+        if: env.RELEASE_EXISTS == 'false'
         run: |
           VERSION=${{ env.VERSION }}
           NOTES=$(awk "/^## \[$VERSION\]/,/^## \[/{if (\$0 ~ /^## \[.*\]/) next; print}" CHANGELOG.md)
@@ -44,7 +44,7 @@ jobs:
 
       - name: Create Release
         uses: actions/create-release@v1
-        if: env.TAG_EXISTS == 'false'
+        if: env.RELEASE_EXISTS == 'false'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
@@ -55,5 +55,5 @@ jobs:
           prerelease: false
 
       - name: Skip Release
-        if: env.TAG_EXISTS == 'true'
-        run: echo "Skipping release creation as the tag already exists."
+        if: env.RELEASE_EXISTS == 'true'
+        run: echo "Skipping release creation as the release already exists."
