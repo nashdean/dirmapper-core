@@ -1,6 +1,4 @@
 # dirmapper-core
-A directory mapping library that aids in visualization and directory structuring.
-# dirmapper-core
 
 A directory mapping library that aids in visualization and directory structuring.
 
@@ -232,7 +230,6 @@ Other allowable styles include `list`, `flat`, and `indentation`.
 ### Summarizing Directory Structure
 You can summarize the directory structure using the `DirectorySummarizer` class. Here is an example:
 ```python
-### Summarizing Directory Structure
 from dirmapper_core.generator.directory_structure_generator import DirectoryStructureGenerator
 from dirmapper_core.ai.summarizer import DirectorySummarizer
 from dirmapper_core.models.directory_structure import DirectoryStructure
@@ -279,6 +276,29 @@ file_path = "/path/to/your/file.py"
 summary = file_summarizer.summarize_file(file_path, max_words=150)
 print("File Summary:")
 print(summary)
+```
+
+### Paginating Directory Structure
+You can paginate a large directory structure into smaller chunks using the `DirectoryPaginator` class. Here is an example:
+```python
+from dirmapper_core.models.directory_structure import DirectoryStructure
+from dirmapper_core.utils.paginator import DirectoryPaginator
+
+# Create a DirectoryStructure instance
+structure = DirectoryStructure()
+
+# Add items to the structure
+# ... (add items to the structure)
+
+# Initialize DirectoryPaginator
+paginator = DirectoryPaginator(max_items_per_page=20)
+
+# Paginate the directory structure
+paginated_structures = paginator.paginate(structure)
+
+# Process each paginated structure
+for paginated_structure in paginated_structures:
+    print(paginated_structure)
 ```
 
 ## Configuration
