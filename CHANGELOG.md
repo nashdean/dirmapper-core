@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.2.2] - 2024-12-20
+**No Breaking Changes. Safe to Bump**
+### DirectoryItem Class
+- Add `content_hash` to detect changes to file content
+
+### DirectoryStructure Class
+- Added `get_files()` method to return a list of DirectoryItems that are all of metadata type `file`
+- Added `get_directories()` method to return a list of DirectoryItems that are all of metadata type `directory`
+- Improved `get_files()` method to handle lists of strings for exclusions or inclusions by converting them into `IgnorePattern` objects
+- Added error handling and logging for `get_files()` method
+
+### PathIgnorer Class
+- Refactored to manage ignoring patterns without focusing on root directories
+- Removed root directory specific logic
+
+### Logger
+- Updated `log_ignored_paths()` method to show the total overall ignored files and folders instead of just the root
+
+### Summarization
+- Added more detailed `INFO` logs including directory size and files being summarized (optional argument)
+- Cache summaries by checking if the DirectoryItem's `content_hash` has changed
+
+
 ## [0.2.1] - 2024-12-17
 **No Breaking Changes. Safe to Bump**
 ### Directory Parser
@@ -7,7 +30,7 @@
 - Renamed `parse_from_directory_structure` to `parse_from_style`. Old method still valid until **v0.3.0**.
 - Added `template_to_directory_structure` method to convert templates to DirectoryStructure objects
 
-### DirectoryItem
+### DirectoryItem Class
 - Changed order in which how Metadata appears in dict
 
 ### Style Changes

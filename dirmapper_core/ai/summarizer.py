@@ -74,9 +74,6 @@ class DirectorySummarizer:
                         }
                     }
         """
-        # Convert DirectoryStructure to nested dictionary with __keys__
-        # nested_dict = directory_structure.to_nested_dict()
-        
         if self.is_local:
             logger.warning('Localized summary functionality under construction. Set preferences to use the api by setting `is_local` to False.')
             return {}
@@ -86,6 +83,7 @@ class DirectorySummarizer:
             'root_path': directory_structure.items[0].path if directory_structure.items else ''
         }
 
+        logger.info(f"Summarizing directory structure for {len(directory_structure.items)} items.  {len(directory_structure.get_files())} files, {len(directory_structure.get_directories())} directories.")
         # Summarize the structure
         summarized_structure = self._summarize_api(directory_structure, meta_data)
 
@@ -179,15 +177,13 @@ class DirectorySummarizer:
             structure (DirectoryStructure): The directory structure to preprocess
         """
         for item in structure.items:
-            
+            # Compute content hash for all files
+            content_hash = item.content_hash
+
             # Summarize content if it's a file
             if item.metadata.get('type') == 'file' and self._should_summarize_file(item.path):
-                content = item.content
-                if content:
-                    logger.debug("Summarizing content for:", item.path)
-                    summary = self.file_summarizer.summarize_content(content, self.max_file_summary_words)
-                    logger.debug("Summary:", summary)
-                    item.summary = summary
+                summary = self.file_summarizer.summarize_content(item, self.max_file_summary_words)
+                item.summary = summary
 
     def _should_summarize_file(self, file_path: str) -> bool:
         allowed_extensions = ['.py', '.md', '.txt']
@@ -253,13 +249,13 @@ class DirectorySummarizer:
                     f"{tree_structure}\n\n"
                     "Use the following JSON object that matches the input structure to generate "
                     "`short_summary` fields for each item. Do not modify the structure in any other way. "
-                    f"Write each summary in {short_summary_length} characters or less. Here is the formatted JSON:\n\n"
+                    f"Write each short summary in {short_summary_length} characters or less. Here is the formatted JSON:\n\n"
                     f"{json.dumps(simple_json_structure, indent=2)}"
                 )
             }
         ]
 
-        logger.info("Sending request to API for summarization")
+        logger.info("Sending request to API for summarization for Directory Structure...")
         stop_logging.clear()
         logging_thread = threading.Thread(
             target=log_periodically, 
@@ -320,16 +316,31 @@ class FileSummarizer:
                 raise ValueError("API token is not set. Please set the API token in the preferences.")
             self.client = OpenAI(api_key=api_token)
 
-    def summarize_content(self, content: str, max_words: int = 100) -> str:
+    def summarize_content(self, item: DirectoryItem, max_words: int = 100, force_refresh: bool = False) -> str:
         """
         Summarizes the content using the OpenAI API or local model.
 
         Args:
-            content (str): The content to summarize.
+            item (DirectoryItem): The content to summarize.
+            max_words (int): The maximum number of words for the summary.
+            force_refresh (bool): Whether to force refresh the cache.
 
         Returns:
             str: The summarized content.
         """
+        # Compute content hash
+        content_hash = item.content_hash
+
+        # Get content
+        content = item.content
+        if content is None:
+            return ""
+
+        # Check if the file should be summarized
+        if not force_refresh and item.summary and item.content_hash == content_hash:
+            logger.info(f"Using cached summary for {item.name}")
+            return item.summary
+
         if self.is_local:
             logger.warning('Local summarization is not implemented yet.')
             return "Local summarization is not implemented yet."
@@ -337,12 +348,16 @@ class FileSummarizer:
             # Check content size
             max_content_length = 5000  # Adjust based on API limits
             if len(content) > max_content_length:
-                logger.info(f"File is large; summarizing in chunks.")
-                return self._summarize_large_content(content, max_words)
+                logger.info(f"File is large; summarizing in chunks. Summarizing {item.name or 'content'}...")
+                summary = self._summarize_large_content(content, max_words)
             else:
-                return self._summarize_api(content, max_words)
+                summary = self._summarize_api(content, max_words, item.name)
+            
+            item.summary = summary
+            item.content_hash = content_hash  # Update the hash in the item
+            return summary
 
-    def summarize_file(self, file_path: str, max_words: int = 100) -> str:
+    def summarize_file(self, file_path: str, max_words: int = 100, reference: Optional[str]=None) -> str:
         """
         Summarizes the content of a file.
 
@@ -371,18 +386,19 @@ class FileSummarizer:
             # Check content size
             max_content_length = 5000  # Adjust based on API limits
             if len(content) > max_content_length:
-                logger.info(f"File is large; summarizing in chunks.")
+                logger.info(f"File is large; summarizing in chunks. Summarizing {reference or 'content'}...")
                 return self._summarize_large_content(content, max_words)
             else:
-                return self._summarize_api(content, max_words)
+                return self._summarize_api(content, max_words, file_path)
 
-    def _summarize_large_content(self, content: str, max_words: int) -> str:
+    def _summarize_large_content(self, content: str, max_words: int, reference: Optional[str]=None) -> str:
         """
         Summarizes large content by splitting it into chunks.
 
         Args:
             content (str): The content to summarize.
             max_words (int): The maximum number of words for the summary.
+            reference (Optional[str]): The reference string for the content. Used for logging.
 
         Returns:
             str: The combined summary of all chunks.
@@ -393,7 +409,7 @@ class FileSummarizer:
 
         for idx, chunk in enumerate(chunks):
             logger.info(f"Summarizing chunk {idx + 1}/{len(chunks)}")
-            summary = self._summarize_api(chunk, max_words)
+            summary = self._summarize_api(chunk, max_words, reference)
             summaries.append(summary)
 
         # Combine summaries
@@ -405,13 +421,14 @@ class FileSummarizer:
 
         return combined_summary
     
-    def _summarize_api(self, content: str, max_words: int) -> str:
+    def _summarize_api(self, content: str, max_words: int, reference: Optional[str]=None) -> str:
         """
         Summarizes the content using the OpenAI API.
 
         Args:
             content (str): The content to summarize.
             max_words (int): The maximum number of words for the summary.
+            reference (Optional[str]): The reference string for the content. Used for logging.
 
         Returns:
             str: The markdown summary of the content.
@@ -427,7 +444,7 @@ class FileSummarizer:
                 f" '```markdown' and '```' block. Here is the content :\n\n{content}"}
         ]
 
-        logger.info(f"Sending request to OpenAI API for summarization.")
+        logger.info(f"Sending request to OpenAI API for summarization. Summarizing {reference or 'content'}...")
 
         stop_logging.clear()
         logging_thread = threading.Thread(target=log_periodically, args=("Waiting for response from OpenAI API...", 5))

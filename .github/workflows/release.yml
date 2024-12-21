@@ -1,0 +1,59 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Install dependencies
+        run: pip install toml
+
+      - name: Get version from pyproject.toml
+        id: get_version
+        run: |
+          VERSION=$(python -c "import toml; print(toml.load('pyproject.toml')['project']['version'])")
+          echo "::set-output name=VERSION::$VERSION"
+
+      - name: Check if tag exists
+        id: check_tag
+        run: |
+          TAG_EXISTS=$(git tag -l "v${{ steps.get_version.outputs.VERSION }}")
+          if [ -z "$TAG_EXISTS" ]; then
+            echo "Tag does not exist"
+            echo "::set-output name=TAG_EXISTS::false"
+          else
+            echo "Tag already exists"
+            echo "::set-output name=TAG_EXISTS::true"
+          fi
+
+      - name: Extract release notes from CHANGELOG.md
+        id: extract_notes
+        if: steps.check_tag.outputs.TAG_EXISTS == 'false'
+        run: |
+          VERSION=${{ steps.get_version.outputs.VERSION }}
+          NOTES=$(awk "/^## \[$VERSION\]/,/^## \[/{if (\$0 ~ /^## \[.*\]/) next; print}" CHANGELOG.md)
+          echo "::set-output name=NOTES::$NOTES"
+
+      - name: Create Release
+        uses: actions/create-release@v1
+        if: steps.check_tag.outputs.TAG_EXISTS == 'false'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{ steps.get_version.outputs.VERSION }}
+          release_name: Release ${{ steps.get_version.outputs.VERSION }}
+          body: ${{ steps.extract_notes.outputs.NOTES }}
+          draft: false
+          prerelease: false
+
+      - name: Skip Release
+        if: steps.check_tag.outputs.TAG_EXISTS == 'true'
+        run: echo "Skipping release creation as the tag already exists."

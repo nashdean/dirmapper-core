@@ -1,5 +1,6 @@
 # dirmapper_core/models/directory_item.py
 
+import hashlib
 import os
 from typing import List, Optional, Dict
 
@@ -62,6 +63,16 @@ class DirectoryItem:
         if not isinstance(value, list):
             raise ValueError("Tags must be a list")
         self.metadata['tags'] = value
+    
+    @property
+    def content_hash(self) -> Optional[str]:
+        """Get the content hash of the directory item."""
+        return self.metadata.get('content_hash')
+
+    @content_hash.setter
+    def content_hash(self, value: Optional[str]) -> None:
+        """Set the content hash of the directory item."""
+        self.metadata['content_hash'] = value
         
     @property
     def content(self) -> Optional[str]:
@@ -78,10 +89,15 @@ class DirectoryItem:
             try:
                 with open(self.path, 'r') as f:
                     self._content = f.read()
+                    self.content_hash = self._hash_content(self._content)  # Update hash
             except Exception as e:
                 self._content = None
                 logger.error(f"Failed to read content from {self.path}: {e}")
         return self._content
+
+    def _hash_content(self, content: str) -> str:
+        """Compute a hash of the content."""
+        return hashlib.md5(content.encode('utf-8')).hexdigest()
 
     def __repr__(self):
         return f"DirectoryItem(path={self.path}, level={self.level}, name={self.name}, metadata={self.metadata})"
