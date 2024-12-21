@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.2.2] - Unreleased
+## [0.2.2] - 2024-12-20
 **No Breaking Changes. Safe to Bump**
 ### DirectoryItem Class
 - Add `content_hash` to detect changes to file content
