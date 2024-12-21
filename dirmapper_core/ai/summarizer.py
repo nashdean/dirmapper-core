@@ -35,7 +35,7 @@ class DirectorySummarizer:
         self.max_short_summary_characters = config.get('max_short_summary_characters', 75)
         self.max_file_summary_words = config.get('max_file_summary_words', 50)
         self.file_summarizer = FileSummarizer(config)  # Kept this
-        self.paginator = DirectoryPaginator(max_items_per_page=50)
+        # self.paginator = DirectoryPaginator(max_items_per_page=50)
 
         if not self.is_local:
             api_token = config.get("api_token")
@@ -113,20 +113,21 @@ class DirectorySummarizer:
             self._preprocess_structure(directory_structure)
         
         logger.debug("Preprocessed structure:", directory_structure)
-        # Create copy for API request without file content
-        api_structure = copy.deepcopy(directory_structure)
+        #TODO: Readd pagination for large directory structures -- calculate the number of tokens needed for the API request and paginate if necessary -- Need to fix the pagination though
+        # # Create copy for API request without file content
+        # api_structure = copy.deepcopy(directory_structure)
 
-        # Paginate large directory structures
-        paginated_structures = self.paginator.paginate(api_structure)
-
-        summarized_structure = {}
-        for paginated_structure in paginated_structures:
-            # Get summaries from API
-            partial_summary = self._summarize_directory_structure_api(
-                paginated_structure,
-                self.max_short_summary_characters     
-            )
-            summarized_structure.update(partial_summary)
+        # # Paginate large directory structures
+        # paginated_structures = self.paginator.paginate(api_structure)
+        # summarized_structure = {}
+        # for paginated_structure in paginated_structures:
+        #     # Get summaries from API
+            # partial_summary = self._summarize_directory_structure_api(
+            #     paginated_structure,
+            #     self.max_short_summary_characters     
+            # )
+            # summarized_structure.update(partial_summary)
+        summarized_structure = self._summarize_directory_structure_api(directory_structure, self.max_short_summary_characters)
 
         return summarized_structure
 
@@ -228,12 +229,14 @@ class DirectorySummarizer:
                     f"{tree_structure}\n\n"
                     "Use the following JSON object that matches the input structure to generate "
                     "`short_summary` fields overwriting the existing `short_summary` field. Use the existing `short_summary` value "
-                    "for additional context about the existing file if it is not labled 'Empty File' or is not empty. "
+                    "for additional context about the existing file if it is not labled 'Empty File'. Generate a short summary for "
+                    "each folder based on the files it contains and also store this in the field `short_summary`. "
                     f"Do not modify the structure in any other way. Write each short summary in {short_summary_length} characters "
                     f"or less. Here is the formatted JSON:\n\n{json.dumps(simple_json_structure, indent=2)}"
                 )
             }
         ]
+        print("Messages: ", messages)
 
         logger.info("Sending request to API for summarization for Directory Structure...")
         stop_logging.clear()
@@ -331,7 +334,9 @@ class FileSummarizer:
             max_content_length = 5000  # Adjust based on API limits
             if len(content) > max_content_length:
                 logger.info(f"File is large; summarizing in chunks. Summarizing {item.name or 'content'}...")
-                summary, short_summary = self._summarize_large_content(content, max_words)
+                summary_dict = self._summarize_large_content(content, max_words)
+                summary = summary_dict.get('summary', '')
+                short_summary = summary_dict.get('short_summary', '')
             else:
                 summary_dict = self._summarize_purpose_api(content, max_words, item.name)
                 summary = summary_dict.get('summary', '')
@@ -404,8 +409,11 @@ class FileSummarizer:
             logger.info("Summarizing the combined summary.")
             combined_summary = self._summarize_purpose_api(combined_summary, max_words).get('summary', '')
 
+        print("Combined Summary: ", combined_summary)
+        logger.info(f"Final Combined Summary Length: {len(combined_summary)}")
         # Generate a short summary
         short_summary = self._summarize_purpose_api(combined_summary, self.max_short_summary_characters, reference, is_short=True).get('short_summary', '')
+        print("Short Summary: ", short_summary)
 
         return {'summary': combined_summary, 'short_summary': short_summary}
     

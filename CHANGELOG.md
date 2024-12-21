@@ -6,7 +6,7 @@
 - Updated to pass the max word length and max short summary length variables to the FileSummarizer.
 - Updated to only use the existing short summaries to generate the project contextual short summaries for each file.
 - Added functionality to fill in the blanks for files/directories still missing short summaries without including long summaries in the API call.
-- Added pagination for large directory structures using the new `DirectoryPaginator` class.
+<!-- - Added pagination for large directory structures using the new `DirectoryPaginator` class. -->
 - Skipped summarization for empty or near-empty files.
 
 ### FileSummarizer Class
