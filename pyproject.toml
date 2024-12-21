@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "dirmapper-core"
-version = "0.2.1"
+version = "0.2.2"
 description = "Core library for directory mapping and summarization"
 authors = [
     {name = "Nash Dean", email = "nashdean.github@gmail.com"}
@@ -28,6 +28,11 @@ dependencies = [
     "pyyaml",
     "typing-extensions"
 ]
+
+[project.urls]
+Source = "https://github.com/nashdean/dirmapper-core"
+Changelog = "https://github.com/nashdean/dirmapper-core/blob/master/CHANGELOG.md"
+Issues = "https://github.com/nashdean/dirmapper-core/issues"
 
 [tool.setuptools.packages.find]
 include = ["dirmapper_core", "dirmapper_core.*"]
