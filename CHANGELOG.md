@@ -19,6 +19,7 @@
 - Updated the prompt and API to return a JSON formatted response with the content summary applied to the key "summary" and the short summary to the key "short_summary".
 - Refactored code to validate this return value structure.
 - For larger content that is divided into chunks, the short summary is only generated on the final iteration where the summary is combined.
+- Added file names to the API prompt for further context
 
 ### DirectoryPaginator Class
 - Created a new `DirectoryPaginator` class to handle pagination of large directory structures into smaller chunks.
@@ -28,8 +29,8 @@
 
 ### TextAnalyzer Utility
 - Added new `TextAnalyzer` utility class for analyzing text content characteristics
-- Moved text analysis methods from summarizer to dedicated utility class
 - Added configurable entropy threshold for binary content detection
+- Added comprehensive list of common text file patterns for better file type detection
 
 ### Logger
 - Added more detailed `INFO` logs including directory size and files being summarized (optional argument).

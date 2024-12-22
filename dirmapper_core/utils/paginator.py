@@ -2,12 +2,10 @@ from typing import List, Tuple, Dict
 from dirmapper_core.models.directory_structure import DirectoryStructure
 from dirmapper_core.models.directory_item import DirectoryItem
 from dirmapper_core.utils.logger import logger
-from collections import defaultdict
 
 class DirectoryPaginator:
     """
     Class to paginate a directory structure into smaller chunks.
-    Supports both item-count based and level-based pagination.
     """
     def __init__(self, max_items_per_page: int = 20, max_tokens: int = 4000):
         """
@@ -78,50 +76,52 @@ class DirectoryPaginator:
 
         Args:
             directory_structure (DirectoryStructure): The directory structure to paginate.
-            by_level (bool): If True, paginate by directory levels instead of item count.
+            by_level (bool): Whether to paginate by levels.
 
         Returns:
             List[DirectoryStructure]: List of paginated directory structures.
         """
         if by_level:
-            return self.paginate_by_level(directory_structure)
-        
-        # Original item-count based pagination
-        paginated_structures = []
-        current_structure = DirectoryStructure()
-        
-        for idx, item in enumerate(directory_structure.items):
-            if idx > 0 and idx % self.max_items_per_page == 0:
-                paginated_structures.append(current_structure)
-                current_structure = DirectoryStructure()
-            current_structure.add_item(item)
-        
-        if current_structure.items:
-            paginated_structures.append(current_structure)
-        
-        return paginated_structures
+            return self._paginate_by_level(directory_structure)
+        else:
+            return self._paginate_by_items(directory_structure)
 
-    def paginate_by_level(self, directory_structure: DirectoryStructure) -> List[DirectoryStructure]:
+    def _paginate_by_items(self, directory_structure: DirectoryStructure) -> List[DirectoryStructure]:
         """
-        Paginate the directory structure by directory levels.
-        Each page contains a complete level of the directory structure.
+        Paginate the directory structure by items.
 
         Args:
             directory_structure (DirectoryStructure): The directory structure to paginate.
 
         Returns:
-            List[DirectoryStructure]: List of paginated directory structures, one per level.
+            List[DirectoryStructure]: List of paginated directory structures.
         """
-        # Group items by level
-        level_groups = defaultdict(list)
-        for item in directory_structure.items:
-            level_groups[item.level].append(item)
-
-        # Create a DirectoryStructure for each level
         paginated_structures = []
+        current_structure = DirectoryStructure()
+        for idx, item in enumerate(directory_structure.items):
+            if idx > 0 and idx % self.max_items_per_page == 0:
+                paginated_structures.append(current_structure)
+                current_structure = DirectoryStructure()
+            current_structure.add_item(item)
+        if current_structure.items:
+            paginated_structures.append(current_structure)
+        return paginated_structures
+
+    def _paginate_by_level(self, directory_structure: DirectoryStructure) -> List[DirectoryStructure]:
+        """
+        Paginate the directory structure by levels.
+
+        Args:
+            directory_structure (DirectoryStructure): The directory structure to paginate.
+
+        Returns:
+            List[DirectoryStructure]: List of paginated directory structures by levels.
+        """
+        level_groups = self._group_by_level(directory_structure)
+        paginated_structures = []
+
         for level in sorted(level_groups.keys()):
             level_structure = DirectoryStructure()
-            
             # Add parent directories to provide context
             parent_dirs = self._get_parent_directories(level_groups[level], directory_structure)
             for parent in parent_dirs:
@@ -135,6 +135,24 @@ class DirectoryPaginator:
             logger.debug(f"Created page for level {level} with {len(level_structure.items)} items")
 
         return paginated_structures
+
+    def _group_by_level(self, directory_structure: DirectoryStructure) -> Dict[int, List[DirectoryItem]]:
+        """
+        Group directory items by their level in the directory structure.
+
+        Args:
+            directory_structure (DirectoryStructure): The directory structure to group.
+
+        Returns:
+            Dict[int, List[DirectoryItem]]: Dictionary with levels as keys and lists of directory items as values.
+        """
+        level_groups = {}
+        for item in directory_structure.items:
+            level = item.path.count('/')
+            if level not in level_groups:
+                level_groups[level] = []
+            level_groups[level].append(item)
+        return level_groups
 
     def _get_parent_directories(self, items: List[DirectoryItem], original_structure: DirectoryStructure) -> List[DirectoryItem]:
         """
@@ -153,14 +171,12 @@ class DirectoryPaginator:
             # Add all parent paths
             for i in range(1, len(path_parts)):
                 parent_path = '/'.join(path_parts[:i])
-                if parent_path:
-                    parent_paths.add(parent_path)
-
-        # Get parent DirectoryItems from original structure
+                parent_paths.add(parent_path)
+        
         parent_items = []
-        for path in parent_paths:
-            parent = original_structure.get_item(path)
-            if parent and parent not in parent_items:
-                parent_items.append(parent)
-
-        return sorted(parent_items, key=lambda x: len(x.path.split('/')))
+        for parent_path in parent_paths:
+            parent_item = original_structure.get_item(parent_path)
+            if parent_item:
+                parent_items.append(parent_item)
+        
+        return parent_items

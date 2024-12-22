@@ -27,16 +27,19 @@ class DirectorySummarizer:
 
         Args:
             config (dict): Configuration dictionary containing:
-                - use_local (bool): Whether to use local summarization
-                - api_token (str): OpenAI API token (required if use_local is False)
-                - summarize_file_content (bool): Whether to summarize file contents
-                - max_file_summary_words (int): Maximum words for file content summaries
-                - max_short_summary_characters (int): Maximum characters for short summaries
-                - exclude_files (List[str]): List of files to exclude from summarization
-                - exclude_dirs (List[str]): List of directories to exclude from summarization
-                - exclude_extensions (List[str]): List of file extensions to exclude from summarization
-                - allowed_extensions (List[str]): List of file extensions to allow for summarization
-                - allowed_files (List[str]): List of file names to allow for summarization
+                - use_local (bool): Whether to use local summarization.
+                - api_token (str): OpenAI API token (required if use_local is False).
+                - summarize_file_content (bool): Whether to summarize file contents.
+                - max_file_summary_words (int): Maximum words for file content summaries.
+                - max_short_summary_characters (int): Maximum characters for short summaries.
+                - exclude_files (List[str]): List of files to exclude from summarization.
+                - exclude_dirs (List[str]): List of directories to exclude from summarization.
+                - exclude_extensions (List[str]): List of file extensions to exclude from summarization.
+                - allowed_extensions (List[str]): List of file extensions to allow for summarization.
+                - allowed_files (List[str]): List of file names to allow for summarization.
+                - pagination_threshold (int): Threshold for pagination (i.e., max items per page allowed).
+                - entropy_threshold (float): Threshold for entropy to detect binary content.
+                - use_level_pagination (bool): Whether to use level-based pagination.
         """
         self.is_local = config.get('use_local', True)
         self.client = None
@@ -44,12 +47,12 @@ class DirectorySummarizer:
         self.max_short_summary_characters = config.get('max_short_summary_characters', 75)
         self.max_file_summary_words = config.get('max_file_summary_words', 50)
         self.file_summarizer = FileSummarizer(config)  # Kept this
-        self.paginator = DirectoryPaginator(max_items_per_page=50)
+        self.paginator = DirectoryPaginator(max_items_per_page=config.get('pagination_threshold', 50), max_tokens=4000)
         self.exclude_files = config.get('exclude_files')
         self.exclude_dirs = config.get('exclude_dirs')
         self.exclude_extensions = config.get('exclude_extensions')
         self.allowed_extensions = config.get('allowed_extensions', ['.py', '.md', '.txt', '.json', '.yaml', '.yml', '.toml', '.xml', '.js', '.html', '.css', '.go', '.java'])
-        self.allowed_files = config.get('allowed_files', ['README', 'LICENSE', 'CHANGELOG', 'CONTRIBUTING', 'Makefile', 'Dockerfile'])
+        self.allowed_files = config.get('allowed_files', ['README', 'MANIFEST', 'LICENSE', 'CHANGELOG', 'CONTRIBUTING', 'Makefile', 'Dockerfile'])
         self.text_analyzer = TextAnalyzer(
             entropy_threshold=config.get('entropy_threshold', 4.0)
         )
@@ -118,7 +121,7 @@ class DirectorySummarizer:
         Summarizes the directory structure using the OpenAI API.
 
         Args:
-            directory_structure (dict): The directory structure to summarize.
+            directory_structure (DirectoryStructure): The directory structure to summarize.
             meta_data (dict): Metadata about the directory structure.
 
         Returns:
@@ -219,6 +222,7 @@ class DirectorySummarizer:
         file_name = os.path.basename(file_path)
         if ext.lower() in self.allowed_extensions or file_name in self.allowed_files:
             # Even if extension is allowed, check if content is binary
+            print("checking:", file_name)
             return not (content and self.text_analyzer.is_binary_content(content))
         
         return False
@@ -397,7 +401,7 @@ class FileSummarizer:
                 summary = summary_dict.get('summary', '')
                 short_summary = summary_dict.get('short_summary', '')
             else:
-                summary_dict = self._summarize_purpose_api(content, max_words, item.name)
+                summary_dict = self._summarize_purpose_api(item.name, content, max_words)
                 summary = summary_dict.get('summary', '')
                 short_summary = summary_dict.get('short_summary', '')
             
@@ -406,7 +410,7 @@ class FileSummarizer:
             item.content_hash = content_hash  # Update the hash in the item
             return {'summary': summary, 'short_summary': short_summary}
 
-    def summarize_file(self, file_path: str, max_words: int = 100, reference: Optional[str]=None) -> dict:
+    def summarize_file(self, file_path: str, max_words: int = 100) -> dict:
         """
         Summarizes the content of a file.
 
@@ -432,22 +436,23 @@ class FileSummarizer:
             logger.warning('Local summarization is not implemented yet.')
             return {"summary": "Local summarization is not implemented yet.", "short_summary": ""}
         else:
+            file_name = os.path.basename(file_path)
             # Check content size
             max_content_length = 5000  # Adjust based on API limits
             if len(content) > max_content_length:
-                logger.info(f"File is large; summarizing in chunks. Summarizing {reference or 'content'}...")
+                logger.info(f"File is large; summarizing in chunks. Summarizing {file_name}...")
                 return self._summarize_large_content(content, max_words)
             else:
-                return self._summarize_purpose_api(content, max_words, file_path)
+                return self._summarize_purpose_api(file_name, content, max_words)
 
-    def _summarize_large_content(self, content: str, max_words: int, reference: Optional[str]=None) -> dict:
+    def _summarize_large_content(self, file_name: str, content: str, max_words: int) -> dict:
         """
         Summarizes large content by splitting it into chunks.
 
         Args:
+            file_name (str): The name of the file.
             content (str): The content to summarize.
             max_words (int): The maximum number of words for the summary.
-            reference (Optional[str]): The reference string for the content. Used for logging.
 
         Returns:
             dict: The combined summary of all chunks and a short summary.
@@ -458,7 +463,7 @@ class FileSummarizer:
 
         for idx, chunk in enumerate(chunks):
             logger.info(f"Summarizing chunk {idx + 1}/{len(chunks)}")
-            summary_dict = self._summarize_purpose_api(chunk, max_words, reference)
+            summary_dict = self._summarize_purpose_api(file_name, chunk, max_words)
             summaries.append(summary_dict.get('summary', ''))
 
         # Combine summaries
@@ -466,24 +471,24 @@ class FileSummarizer:
         # Optionally, summarize the combined summary if it's still too long
         if len(combined_summary) > chunk_size:
             logger.info("Summarizing the combined summary.")
-            combined_summary = self._summarize_purpose_api(combined_summary, max_words).get('summary', '')
+            combined_summary = self._summarize_purpose_api(file_name, combined_summary, max_words).get('summary', '')
 
         print("Combined Summary: ", combined_summary)
         logger.info(f"Final Combined Summary Length: {len(combined_summary)}")
         # Generate a short summary
-        short_summary = self._summarize_purpose_api(combined_summary, self.max_short_summary_characters, reference, is_short=True).get('short_summary', '')
+        short_summary = self._summarize_purpose_api(file_name, combined_summary, self.max_short_summary_characters, is_short=True).get('short_summary', '')
         print("Short Summary: ", short_summary)
 
         return {'summary': combined_summary, 'short_summary': short_summary}
     
-    def _summarize_purpose_api(self, content: str, max_length: int, reference: Optional[str]=None, is_short: bool=False) -> dict:
+    def _summarize_purpose_api(self, file_name: str, content: str, max_length: int, is_short: bool=False) -> dict:
         """
         Summarizes the content using the OpenAI API.
 
         Args:
+            file_name (str): The name of the file.
             content (str): The content to summarize.
             max_length (int): The maximum length for the summary (words or characters).
-            reference (Optional[str]): The reference string for the content. Used for logging.
             is_short (bool): Whether the summary is a short summary.
 
         Returns:
@@ -503,12 +508,12 @@ class FileSummarizer:
                 f"The long summary should be limited to {self.max_file_summary_words} words and the short summary should be limited to {self.max_short_summary_characters} characters. "
                 "Short summaries should not have any new lines. Return the summaries in the following format:\n\n"
                 f"{{\n  \"summary\": \"This is the long summary.\",\n  \"short_summary\": \"This is the short summary.\"\n}}"
-                "Do not include any additional information in the response. Here is the content:\n\n"
+                f"Do not include any additional information in the response. Here is the content for the file {file_name}:\n\n"
                 f"{content}"
             )}
         ]
 
-        logger.info(f"Sending request to OpenAI API for summarization. Summarizing {reference or 'content'}...")
+        logger.info(f"Sending request to OpenAI API for summarization. Summarizing {file_name}...")
 
         stop_logging.clear()
         logging_thread = threading.Thread(target=log_periodically, args=("Waiting for response from OpenAI API...", 5))
