@@ -6,8 +6,13 @@
 - Updated to pass the max word length and max short summary length variables to the FileSummarizer.
 - Updated to only use the existing short summaries to generate the project contextual short summaries for each file.
 - Added functionality to fill in the blanks for files/directories still missing short summaries without including long summaries in the API call.
-<!-- - Added pagination for large directory structures using the new `DirectoryPaginator` class. -->
+- Added pagination for large directory structures using the new `DirectoryPaginator` class.
+    - Added configuration option for level-based pagination
+    - Updated summarizer to support processing directory structures level by level
+    - Improved logging for level-based pagination progress
 - Skipped summarization for empty or near-empty files.
+- Refactored `_should_summarize_file` to use new `TextAnalyzer` utility class
+- Improved file content analysis with better separation of concerns
 
 ### FileSummarizer Class
 - Modified to return both "summary" and "short_summary" in the same API call to reduce cost and response time.
@@ -17,6 +22,14 @@
 
 ### DirectoryPaginator Class
 - Created a new `DirectoryPaginator` class to handle pagination of large directory structures into smaller chunks.
+- Added level-based pagination support to process directory structures level by level
+- Added method to extract and maintain parent directory context in level-based pagination
+- Updated paginate method to support both item-count and level-based pagination modes
+
+### TextAnalyzer Utility
+- Added new `TextAnalyzer` utility class for analyzing text content characteristics
+- Moved text analysis methods from summarizer to dedicated utility class
+- Added configurable entropy threshold for binary content detection
 
 ### Logger
 - Added more detailed `INFO` logs including directory size and files being summarized (optional argument).

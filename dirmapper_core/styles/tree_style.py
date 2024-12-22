@@ -204,7 +204,7 @@ class TreeStyle(BaseStyle):
         for line, item in lines_and_items:
             short_summary = item.metadata.get('short_summary') if item.metadata else None
             if not short_summary:
-                short_summary = "Empty File" if item.metadata and item.metadata.get('type') == 'file' else ""
+                short_summary = "No summary" if item.metadata and item.metadata.get('type') == 'file' else ""
 
             spacing = " " * (max_line_length - len(line) + 2)  # 2 spaces before '#'
             result_lines.append(f"{line}{spacing}# {short_summary}")

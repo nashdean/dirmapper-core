@@ -10,9 +10,12 @@ from dirmapper_core.utils.logger import logger, log_periodically, stop_logging
 from dirmapper_core.writer.template_parser import TemplateParser
 from openai import OpenAI, AuthenticationError
 from dirmapper_core.utils.paginator import DirectoryPaginator
+from dirmapper_core.utils.text_analyzer import TextAnalyzer
 
 import json
 import threading
+import string
+import math
 
 class DirectorySummarizer:
     """
@@ -28,6 +31,12 @@ class DirectorySummarizer:
                 - api_token (str): OpenAI API token (required if use_local is False)
                 - summarize_file_content (bool): Whether to summarize file contents
                 - max_file_summary_words (int): Maximum words for file content summaries
+                - max_short_summary_characters (int): Maximum characters for short summaries
+                - exclude_files (List[str]): List of files to exclude from summarization
+                - exclude_dirs (List[str]): List of directories to exclude from summarization
+                - exclude_extensions (List[str]): List of file extensions to exclude from summarization
+                - allowed_extensions (List[str]): List of file extensions to allow for summarization
+                - allowed_files (List[str]): List of file names to allow for summarization
         """
         self.is_local = config.get('use_local', True)
         self.client = None
@@ -36,6 +45,15 @@ class DirectorySummarizer:
         self.max_file_summary_words = config.get('max_file_summary_words', 50)
         self.file_summarizer = FileSummarizer(config)  # Kept this
         self.paginator = DirectoryPaginator(max_items_per_page=50)
+        self.exclude_files = config.get('exclude_files')
+        self.exclude_dirs = config.get('exclude_dirs')
+        self.exclude_extensions = config.get('exclude_extensions')
+        self.allowed_extensions = config.get('allowed_extensions', ['.py', '.md', '.txt', '.json', '.yaml', '.yml', '.toml', '.xml', '.js', '.html', '.css', '.go', '.java'])
+        self.allowed_files = config.get('allowed_files', ['README', 'LICENSE', 'CHANGELOG', 'CONTRIBUTING', 'Makefile', 'Dockerfile'])
+        self.text_analyzer = TextAnalyzer(
+            entropy_threshold=config.get('entropy_threshold', 4.0)
+        )
+        self.use_level_pagination = config.get('use_level_pagination', False)
 
         if not self.is_local:
             api_token = config.get("api_token")
@@ -119,9 +137,18 @@ class DirectorySummarizer:
         
         if should_paginate:
             logger.info(f"Paginating directory structure. Estimated tokens: {estimated_tokens}")
-            paginated_structures = self.paginator.paginate(directory_structure)
+            paginated_structures = self.paginator.paginate(
+                directory_structure, 
+                by_level=self.use_level_pagination
+            )
+            
+            if self.use_level_pagination:
+                logger.info(f"Using level-based pagination. Processing {len(paginated_structures)} levels.")
+            
             summarized_structure = {}
-            for paginated_structure in paginated_structures:
+            for idx, paginated_structure in enumerate(paginated_structures):
+                if self.use_level_pagination:
+                    logger.info(f"Processing level {idx + 1}/{len(paginated_structures)}")
                 partial_summary = self._summarize_directory_structure_api(
                     paginated_structure,
                     self.max_short_summary_characters     
@@ -152,7 +179,7 @@ class DirectorySummarizer:
                 if self._is_empty_or_near_empty(item.content):
                     item.summary = "Empty File"
                     item.short_summary = "Empty File"
-                elif self._should_summarize_file(item.path):
+                elif self._should_summarize_file(item.path, item.content):
                     summary_dict = self.file_summarizer.summarize_content(item, self.max_file_summary_words)
                     item.summary = summary_dict.get('summary', '')
                     item.short_summary = summary_dict.get('short_summary', '')
@@ -169,23 +196,33 @@ class DirectorySummarizer:
         """
         return content is None or len(content.strip()) == 0
 
-    def _should_summarize_file(self, file_path: str) -> bool:
-        allowed_extensions = ['.py', '.md', '.txt', '.json', '.yaml', '.yml']
-        _, ext = os.path.splitext(file_path)
-        return ext.lower() in allowed_extensions
-
-    def _apply_style_and_format(self, summarized_structure: dict) -> str:
+    def _should_summarize_file(self, file_path: str, content: Optional[str] = None) -> bool:
         """
-        Applies the specified style and format to the summarized directory structure. This method uses the Formatter object to format the structure.
+        Determines if a file should be summarized based on its extension and content characteristics.
 
         Args:
-            summarized_structure (dict): The summarized directory structure to format.
+            file_path (str): The path to the file.
+            content (Optional[str]): The content of the file.
 
         Returns:
-            str: The formatted directory structure using the specified style and format.
+            bool: True if the file should be summarized, False otherwise.
         """
-        return self.formatter.format(summarized_structure, self.format_instruction)
-    
+        if self.exclude_files and os.path.basename(file_path) in self.exclude_files:
+            return False
+        if self.exclude_dirs and os.path.dirname(file_path) in self.exclude_dirs:
+            return False
+        if self.exclude_extensions and os.path.splitext(file_path)[1] in self.exclude_extensions:
+            return False
+        
+        # Check file extension and name
+        _, ext = os.path.splitext(file_path)
+        file_name = os.path.basename(file_path)
+        if ext.lower() in self.allowed_extensions or file_name in self.allowed_files:
+            # Even if extension is allowed, check if content is binary
+            return not (content and self.text_analyzer.is_binary_content(content))
+        
+        return False
+
     def summarize_directory_structure_local(self, directory_structure: str, short_summary_length: int) -> dict:
         """
         Summarizes the directory structure using a local model.
