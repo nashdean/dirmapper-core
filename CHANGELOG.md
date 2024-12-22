@@ -1,7 +1,12 @@
 # Changelog
 
-## [0.2.3] - 2024-12-22
+## [0.2.4] - Unreleased : Release
 **No Breaking Changes. Safe to Bump**
+**Full Changelog**: [v0.2.3...v0.2.4](https://github.com/nashdean/dirmapper-core/compare/v0.2.3...v0.2.4)
+
+## [0.2.3] - 2024-12-22 : Pre-release
+**No Breaking Changes. Safe to Bump**
+**Full Changelog**: [v0.2.2...v0.2.3](https://github.com/nashdean/dirmapper-core/compare/v0.2.2...v0.2.3)
 ### DirectorySummarizer Class
 - Updated to pass the max word length and max short summary length variables to the FileSummarizer.
 - Updated to only use the existing short summaries to generate the project contextual short summaries for each file.
@@ -43,7 +48,7 @@
 ### Miscellaneous
 - Updated README with fixes.
 
-## [0.2.2] - 2024-12-20
+## [0.2.2] - 2024-12-20 : Pre-release
 **No Breaking Changes. Safe to Bump**
 ### DirectoryItem Class
 - Add `content_hash` to detect changes to file content

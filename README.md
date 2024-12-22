@@ -331,7 +331,7 @@ structure = DirectoryStructure()
 
 # Add items to the structure
 structure.add_item(DirectoryItem('/path/to/game', 0, 'game', {
-    'type': 'folder',
+    'type': 'directory',
     'content': None,
     'summary': None,
     'short_summary': None,
@@ -367,7 +367,7 @@ The above code will generate the following output to the console:
     "to": {
       "game": {
         "__keys__": {
-          "type": "folder",
+          "type": "directory",
           "content": null,
           "summary": null,
           "short_summary": null,
@@ -398,7 +398,7 @@ The above code will generate the following output to the console:
 ```
 
 ### Working with DirectoryItem Class
-The most basic element of a directory structure is an item represented by the `DirectoryItem` class. This class is an abstracted object representing a `file` or `folder`. Each object holds valuable metadata about the underlying item, including summaries of the contents which can be generated with AI.
+The most basic element of a directory structure is an item represented by the `DirectoryItem` class. This class is an abstracted object representing a `file` or `directory`. Each object holds valuable metadata about the underlying item, including summaries of the contents which can be generated with AI.
 ```python
     DirectoryItem(
         path='/path/to/project/README.md',
@@ -406,9 +406,11 @@ The most basic element of a directory structure is an item represented by the `D
         name='README.md',
         metadata={
             'type': 'file',
-            'size': '256B',
             'content': '# Project Documentation',
-            'creation_date': '2024-01-01'
+            'content_hash': 'a1b2c3d4e5f6g7h8i9j0',
+            'summary': None,
+            'short_summary': None,
+            'tags': []
         }
     )
 ```
