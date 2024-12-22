@@ -5,16 +5,21 @@ on:
     tags:
       - 'v*.*.*'
 
+permissions:
+  contents: write
+
 jobs:
   release:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Install dependencies
-        run: pip install toml
+        run: |
+          pip install toml
+          gh auth login --with-token <<< "${{ secrets.GITHUB_TOKEN }}"
 
       - name: Get version from pyproject.toml
         id: get_version
@@ -25,7 +30,7 @@ jobs:
       - name: Check if release exists
         id: check_release
         run: |
-          RELEASE_EXISTS=$(gh release view "v${{ env.VERSION }}" --json tagName --jq '.tagName' || echo "not_found")
+          RELEASE_EXISTS=$(gh release view "v${{ env.VERSION }}" --json tagName --jq '.tagName' 2>/dev/null || echo "not_found")
           if [ "$RELEASE_EXISTS" == "not_found" ]; then
             echo "Release does not exist"
             echo "RELEASE_EXISTS=false" >> $GITHUB_ENV
@@ -35,24 +40,22 @@ jobs:
           fi
 
       - name: Extract release notes from CHANGELOG.md
-        id: extract_notes
         if: env.RELEASE_EXISTS == 'false'
         run: |
           VERSION=${{ env.VERSION }}
-          NOTES=$(awk "/^## \[$VERSION\]/,/^## \[/{if (\$0 ~ /^## \[.*\]/) next; print}" CHANGELOG.md)
-          echo "NOTES=$NOTES" >> $GITHUB_ENV
+          {
+            echo 'NOTES<<EOF'
+            awk "/^## \[$VERSION\]/,/^## \[/{if (\$0 ~ /^## \[.*\]/) next; print}" CHANGELOG.md
+            echo EOF
+          } >> $GITHUB_ENV
 
       - name: Create Release
-        uses: actions/create-release@v1
         if: env.RELEASE_EXISTS == 'false'
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: v${{ env.VERSION }}
-          release_name: Release ${{ env.VERSION }}
-          body: ${{ env.NOTES }}
-          draft: false
-          prerelease: false
+        run: |
+          gh release create "v${{ env.VERSION }}" \
+            --title "Release ${{ env.VERSION }}" \
+            --notes "${{ env.NOTES }}" \
+            --verify-tag
 
       - name: Skip Release
         if: env.RELEASE_EXISTS == 'true'

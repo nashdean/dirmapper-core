@@ -1,5 +1,48 @@
 # Changelog
 
+## [0.2.3] - 2024-12-22
+**No Breaking Changes. Safe to Bump**
+### DirectorySummarizer Class
+- Updated to pass the max word length and max short summary length variables to the FileSummarizer.
+- Updated to only use the existing short summaries to generate the project contextual short summaries for each file.
+- Added functionality to fill in the blanks for files/directories still missing short summaries without including long summaries in the API call.
+- Added pagination for large directory structures using the new `DirectoryPaginator` class.
+    - Added configuration option for level-based pagination
+    - Updated summarizer to support processing directory structures level by level
+    - Improved pagination logging to show detailed progress:
+        - Added page/level numbers and total count
+        - Added item counts per batch
+        - Added sample items being processed
+        - Added clearer distinction between level-based and item-based pagination
+        - Added completion status for each batch
+- Skipped summarization for empty or near-empty files.
+- Refactored `_should_summarize_file` to use new `TextAnalyzer` utility class
+- Improved file content analysis with better separation of concerns
+
+### FileSummarizer Class
+- Modified to return both "summary" and "short_summary" in the same API call to reduce cost and response time.
+- Updated the prompt and API to return a JSON formatted response with the content summary applied to the key "summary" and the short summary to the key "short_summary".
+- Refactored code to validate this return value structure.
+- For larger content that is divided into chunks, the short summary is only generated on the final iteration where the summary is combined.
+- Added file names to the API prompt for further context
+
+### DirectoryPaginator Class
+- Created a new `DirectoryPaginator` class to handle pagination of large directory structures into smaller chunks.
+- Added level-based pagination support to process directory structures level by level
+- Added method to extract and maintain parent directory context in level-based pagination
+- Updated paginate method to support both item-count and level-based pagination modes
+
+### TextAnalyzer Utility
+- Added new `TextAnalyzer` utility class for analyzing text content characteristics
+- Added configurable entropy threshold for binary content detection
+- Added comprehensive list of common text file patterns for better file type detection
+
+### Logger
+- Added more detailed `INFO` logs including directory size and files being summarized (optional argument).
+
+### Miscellaneous
+- Updated README with fixes.
+
 ## [0.2.2] - 2024-12-20
 **No Breaking Changes. Safe to Bump**
 ### DirectoryItem Class
