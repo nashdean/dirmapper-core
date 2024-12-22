@@ -35,7 +35,7 @@ class DirectorySummarizer:
         self.max_short_summary_characters = config.get('max_short_summary_characters', 75)
         self.max_file_summary_words = config.get('max_file_summary_words', 50)
         self.file_summarizer = FileSummarizer(config)  # Kept this
-        # self.paginator = DirectoryPaginator(max_items_per_page=50)
+        self.paginator = DirectoryPaginator(max_items_per_page=50)
 
         if not self.is_local:
             api_token = config.get("api_token")
@@ -113,23 +113,27 @@ class DirectorySummarizer:
             self._preprocess_structure(directory_structure)
         
         logger.debug("Preprocessed structure:", directory_structure)
-        #TODO: Readd pagination for large directory structures -- calculate the number of tokens needed for the API request and paginate if necessary -- Need to fix the pagination though
-        # # Create copy for API request without file content
-        # api_structure = copy.deepcopy(directory_structure)
-
-        # # Paginate large directory structures
-        # paginated_structures = self.paginator.paginate(api_structure)
-        # summarized_structure = {}
-        # for paginated_structure in paginated_structures:
-        #     # Get summaries from API
-            # partial_summary = self._summarize_directory_structure_api(
-            #     paginated_structure,
-            #     self.max_short_summary_characters     
-            # )
-            # summarized_structure.update(partial_summary)
-        summarized_structure = self._summarize_directory_structure_api(directory_structure, self.max_short_summary_characters)
-
-        return summarized_structure
+        
+        # Check if pagination is needed
+        should_paginate, estimated_tokens = self.paginator.should_paginate(directory_structure)
+        
+        if should_paginate:
+            logger.info(f"Paginating directory structure. Estimated tokens: {estimated_tokens}")
+            paginated_structures = self.paginator.paginate(directory_structure)
+            summarized_structure = {}
+            for paginated_structure in paginated_structures:
+                partial_summary = self._summarize_directory_structure_api(
+                    paginated_structure,
+                    self.max_short_summary_characters     
+                )
+                summarized_structure = self._merge_summaries(summarized_structure, partial_summary)
+            return summarized_structure
+        else:
+            logger.info(f"Processing directory structure without pagination. Estimated tokens: {estimated_tokens}")
+            return self._summarize_directory_structure_api(
+                directory_structure, 
+                self.max_short_summary_characters
+            )
 
     def _preprocess_structure(self, structure: DirectoryStructure) -> None:
         """
@@ -279,6 +283,24 @@ class DirectorySummarizer:
         finally:
             stop_logging.set()
             logging_thread.join()
+    
+    def _merge_summaries(self, original: dict, new: dict) -> dict:
+        """
+        Merges two dictionaries of summaries as a deep merge.
+
+        Args:
+            original (dict): The original dictionary of summaries.
+            new (dict): The new dictionary of summaries to merge.
+
+        Returns:
+            dict: Returns the merged dictionary of summaries (which is also mutated in place).
+        """
+        for key, value in new.items():
+            if key in original and isinstance(original[key], dict) and isinstance(value, dict):
+                original[key] = self._merge_summaries(original[key], value)
+            else:
+                original[key] = value
+        return original
 
 class FileSummarizer:
     """
