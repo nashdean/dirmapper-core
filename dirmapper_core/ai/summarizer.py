@@ -139,27 +139,45 @@ class DirectorySummarizer:
         should_paginate, estimated_tokens = self.paginator.should_paginate(directory_structure)
         
         if should_paginate:
-            logger.info(f"Paginating directory structure. Estimated tokens: {estimated_tokens}")
+            logger.info(f"Directory structure requires pagination. Items: {len(directory_structure.items)}, "
+                       f"Estimated tokens: {estimated_tokens}")
             paginated_structures = self.paginator.paginate(
                 directory_structure, 
                 by_level=self.use_level_pagination
             )
             
             if self.use_level_pagination:
-                logger.info(f"Using level-based pagination. Processing {len(paginated_structures)} levels.")
+                logger.info(f"Using level-based pagination. Processing {len(paginated_structures)} levels")
+            else:
+                logger.info(f"Using item-based pagination. Processing {len(paginated_structures)} pages")
             
             summarized_structure = {}
-            for idx, paginated_structure in enumerate(paginated_structures):
+            total_pages = len(paginated_structures)
+            
+            for idx, paginated_structure in enumerate(paginated_structures, 1):
                 if self.use_level_pagination:
-                    logger.info(f"Processing level {idx + 1}/{len(paginated_structures)}")
+                    level = len(paginated_structure.items[0].path.split('/')) - 1 if paginated_structure.items else 0
+                    logger.info(f"Processing level {level} (page {idx}/{total_pages})")
+                    logger.info(f"Current level contains {len(paginated_structure.items)} items")
+                else:
+                    logger.info(f"Processing page {idx}/{total_pages}")
+                    logger.info(f"Current page contains {len(paginated_structure.items)} items")
+                
+                # Log the first few items in this batch for context
+                sample_items = [item.path for item in paginated_structure.items[:3]]
+                logger.debug(f"Sample items in current batch: {', '.join(sample_items)}")
+                
                 partial_summary = self._summarize_directory_structure_api(
                     paginated_structure,
                     self.max_short_summary_characters     
                 )
                 summarized_structure = self._merge_summaries(summarized_structure, partial_summary)
+                logger.info(f"Completed processing batch {idx}/{total_pages}")
+            
             return summarized_structure
         else:
-            logger.info(f"Processing directory structure without pagination. Estimated tokens: {estimated_tokens}")
+            logger.info(f"Processing directory structure without pagination. Items: {len(directory_structure.items)}, "
+                       f"Estimated tokens: {estimated_tokens}")
             return self._summarize_directory_structure_api(
                 directory_structure, 
                 self.max_short_summary_characters
@@ -281,9 +299,11 @@ class DirectorySummarizer:
                 )
             }
         ]
-        print("Messages: ", messages)
+        logger.info("Sending request to API for summarization...")
+        logger.info(f"Structure contains {len(directory_structure.items)} items "
+                   f"({len(directory_structure.get_files())} files, "
+                   f"{len(directory_structure.get_directories())} directories)")
 
-        logger.info("Sending request to API for summarization for Directory Structure...")
         stop_logging.clear()
         logging_thread = threading.Thread(
             target=log_periodically, 
@@ -397,7 +417,7 @@ class FileSummarizer:
             max_content_length = 5000  # Adjust based on API limits
             if len(content) > max_content_length:
                 logger.info(f"File is large; summarizing in chunks. Summarizing {item.name or 'content'}...")
-                summary_dict = self._summarize_large_content(content, max_words)
+                summary_dict = self._summarize_large_content(item.name, content, max_words)
                 summary = summary_dict.get('summary', '')
                 short_summary = summary_dict.get('short_summary', '')
             else:
@@ -468,10 +488,9 @@ class FileSummarizer:
 
         # Combine summaries
         combined_summary = "\n".join(summaries)
-        # Optionally, summarize the combined summary if it's still too long
-        if len(combined_summary) > chunk_size:
-            logger.info("Summarizing the combined summary.")
-            combined_summary = self._summarize_purpose_api(file_name, combined_summary, max_words).get('summary', '')
+        
+        # Summarize the combined summary based on max_words guidelines
+        combined_summary = self._summarize_purpose_api(file_name, combined_summary, max_words).get('summary', '')
 
         print("Combined Summary: ", combined_summary)
         logger.info(f"Final Combined Summary Length: {len(combined_summary)}")

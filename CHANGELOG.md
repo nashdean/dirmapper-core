@@ -9,7 +9,12 @@
 - Added pagination for large directory structures using the new `DirectoryPaginator` class.
     - Added configuration option for level-based pagination
     - Updated summarizer to support processing directory structures level by level
-    - Improved logging for level-based pagination progress
+    - Improved pagination logging to show detailed progress:
+        - Added page/level numbers and total count
+        - Added item counts per batch
+        - Added sample items being processed
+        - Added clearer distinction between level-based and item-based pagination
+        - Added completion status for each batch
 - Skipped summarization for empty or near-empty files.
 - Refactored `_should_summarize_file` to use new `TextAnalyzer` utility class
 - Improved file content analysis with better separation of concerns
