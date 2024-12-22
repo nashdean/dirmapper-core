@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.2.3] - Unreleased
+## [0.2.3] - 2024-12-22
 **No Breaking Changes. Safe to Bump**
 ### DirectorySummarizer Class
 - Updated to pass the max word length and max short summary length variables to the FileSummarizer.
