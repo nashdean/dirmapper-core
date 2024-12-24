@@ -11,54 +11,16 @@ from dirmapper_core.writer.template_parser import TemplateParser
 from openai import OpenAI, AuthenticationError
 from dirmapper_core.utils.paginator import DirectoryPaginator
 from dirmapper_core.utils.text_analyzer import TextAnalyzer
+from dirmapper_core.utils.cache import SummaryCache, cached_api_call
 
 import json
 import threading
-import string
-import math
-import concurrent.futures
+
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List, Dict, Any
 import time
 from ratelimit import limits, sleep_and_retry
-import hashlib
-import functools
-from datetime import datetime, timedelta
-import diskcache
 
-class SummaryCache:
-    """Cache for API responses to avoid redundant calls."""
-    
-    def __init__(self, cache_dir: str = ".summary_cache", ttl_days: int = 7):
-        self.cache = diskcache.Cache(cache_dir)
-        self.ttl = ttl_days * 24 * 60 * 60  # Convert days to seconds
-
-    def get_cache_key(self, content: str, context: str = "") -> str:
-        """Generate a cache key from content and context."""
-        return hashlib.sha256(f"{content}{context}".encode()).hexdigest()
-
-    def get(self, key: str) -> Optional[Dict]:
-        """Get cached summary if it exists and is not expired."""
-        return self.cache.get(key)
-
-    def set(self, key: str, value: Dict):
-        """Cache a summary with TTL."""
-        self.cache.set(key, value, expire=self.ttl)
-
-def cached_api_call(func):
-    """Decorator to cache API calls."""
-    @functools.wraps(func)
-    def wrapper(self, *args, **kwargs):
-        if hasattr(self, 'cache'):
-            cache_key = self.cache.get_cache_key(str(args) + str(kwargs))
-            cached_result = self.cache.get(cache_key)
-            if cached_result is not None:
-                return cached_result
-            result = func(self, *args, **kwargs)
-            self.cache.set(cache_key, result)
-            return result
-        return func(self, *args, **kwargs)
-    return wrapper
 
 class DirectorySummarizer:
     """
@@ -714,7 +676,7 @@ class FileSummarizer:
             )}
         ]
 
-        logger.info(f"Sending request to OpenAI API for summarization. Summarizing {file_name}...")
+        logger.info(f"🔄 Processing summary request for {file_name}...")
 
         stop_logging.clear()
         logging_thread = threading.Thread(target=log_periodically, args=("Waiting for response from OpenAI API...", 5))
@@ -728,6 +690,7 @@ class FileSummarizer:
                 temperature=temperature,
                 response_format={"type": "json_object"}
             )
+            logger.info(f"✅ Received API response for {file_name}")
             if not response or not response.choices:
                 logger.error("Empty or invalid response from API")
                 return {"summary": "", "short_summary": ""}
@@ -746,7 +709,7 @@ class FileSummarizer:
             logger.error(f"Authentication error: {e}")
             return {"summary": "", "short_summary": ""}
         except Exception as e:
-            logger.error(f"Error during API call: {e}")
+            logger.error(f"❌ API Error for {file_name}: {str(e)}")
             return {"summary": "", "short_summary": ""}
         finally:
             stop_logging.set()
