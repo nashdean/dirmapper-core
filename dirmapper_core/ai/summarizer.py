@@ -16,6 +16,49 @@ import json
 import threading
 import string
 import math
+import concurrent.futures
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import List, Dict, Any
+import time
+from ratelimit import limits, sleep_and_retry
+import hashlib
+import functools
+from datetime import datetime, timedelta
+import diskcache
+
+class SummaryCache:
+    """Cache for API responses to avoid redundant calls."""
+    
+    def __init__(self, cache_dir: str = ".summary_cache", ttl_days: int = 7):
+        self.cache = diskcache.Cache(cache_dir)
+        self.ttl = ttl_days * 24 * 60 * 60  # Convert days to seconds
+
+    def get_cache_key(self, content: str, context: str = "") -> str:
+        """Generate a cache key from content and context."""
+        return hashlib.sha256(f"{content}{context}".encode()).hexdigest()
+
+    def get(self, key: str) -> Optional[Dict]:
+        """Get cached summary if it exists and is not expired."""
+        return self.cache.get(key)
+
+    def set(self, key: str, value: Dict):
+        """Cache a summary with TTL."""
+        self.cache.set(key, value, expire=self.ttl)
+
+def cached_api_call(func):
+    """Decorator to cache API calls."""
+    @functools.wraps(func)
+    def wrapper(self, *args, **kwargs):
+        if hasattr(self, 'cache'):
+            cache_key = self.cache.get_cache_key(str(args) + str(kwargs))
+            cached_result = self.cache.get(cache_key)
+            if cached_result is not None:
+                return cached_result
+            result = func(self, *args, **kwargs)
+            self.cache.set(cache_key, result)
+            return result
+        return func(self, *args, **kwargs)
+    return wrapper
 
 class DirectorySummarizer:
     """
@@ -57,6 +100,11 @@ class DirectorySummarizer:
             entropy_threshold=config.get('entropy_threshold', 4.0)
         )
         self.use_level_pagination = config.get('use_level_pagination', False)
+        self.cache = SummaryCache(
+            cache_dir=config.get("cache_dir", ".summary_cache"),
+            ttl_days=config.get("cache_ttl_days", 7)
+        )
+        self.concurrent_dir_summaries = config.get("concurrent_dir_summaries", 3)
 
         if not self.is_local:
             api_token = config.get("api_token")
@@ -185,26 +233,28 @@ class DirectorySummarizer:
 
     def _preprocess_structure(self, structure: DirectoryStructure) -> None:
         """
-        Preprocesses the directory structure to add content summaries in __keys__.content.
-        Modifies the structure in place.
-
-        Args:
-            structure (DirectoryStructure): The directory structure to preprocess
+        Preprocesses the directory structure to add content summaries in parallel.
         """
-        for item in structure.items:
-            # Compute content hash for all files
-            content_hash = item.content_hash
+        # Get all files that need summarization
+        files_to_summarize = [
+            item for item in structure.get_files()
+            if not self._is_empty_or_near_empty(item.content) 
+            and self._should_summarize_file(item.path, item.content)
+        ]
 
-            # Summarize content if it's a file
-            if item.metadata.get('type') == 'file':
-                if self._is_empty_or_near_empty(item.content):
-                    item.summary = "Empty File"
-                    item.short_summary = "Empty File"
-                elif self._should_summarize_file(item.path, item.content):
-                    summary_dict = self.file_summarizer.summarize_content(item, self.max_file_summary_words)
-                    item.summary = summary_dict.get('summary', '')
-                    item.short_summary = summary_dict.get('short_summary', '')
-    
+        if not files_to_summarize:
+            return
+
+        logger.info(f"Summarizing {len(files_to_summarize)} files in parallel...")
+        
+        # Process files in parallel using FileSummarizer
+        summaries = self.file_summarizer.summarize_items_parallel(
+            files_to_summarize,
+            self.max_file_summary_words
+        )
+
+        logger.info(f"Completed summarizing {len(summaries)} files")
+
     def _is_empty_or_near_empty(self, content: Optional[str]) -> bool:
         """
         Check if the content is empty or near-empty.
@@ -265,6 +315,7 @@ class DirectorySummarizer:
             # logger.error("Summarization feature requires additional dependencies. Please run `dirmap install-ai` to set it up.")
             return "Error: Summarization feature requires additional dependencies.  Please run `dirmap install-ai` to set it up."
 
+    @cached_api_call
     def _summarize_directory_structure_api(self, directory_structure: DirectoryStructure, short_summary_length: int) -> dict:
         """
         Summarizes the directory structure using the OpenAI API.
@@ -383,6 +434,122 @@ class FileSummarizer:
             if not api_token:
                 raise ValueError("API token is not set. Please set the API token in the preferences.")
             self.client = OpenAI(api_key=api_token)
+        self.max_workers = config.get("max_workers", 5)
+        self.requests_per_minute = config.get("requests_per_minute", 50)
+        self.batch_size = config.get("batch_size", 10)
+        self.cache = SummaryCache(
+            cache_dir=config.get("cache_dir", ".summary_cache"),
+            ttl_days=config.get("cache_ttl_days", 7)
+        )
+        self.chunk_size = config.get("chunk_size", 4000)
+        self.concurrent_chunks = config.get("concurrent_chunks", 3)
+
+    @sleep_and_retry
+    @limits(calls=50, period=60)  # Rate limit: 50 calls per minute
+    def _rate_limited_api_call(self, messages: List[Dict], model: str, max_tokens: int, temperature: float) -> Any:
+        """Make a rate-limited API call to OpenAI."""
+        return self.client.chat.completions.create(
+            model=model,
+            messages=messages,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            response_format={"type": "json_object"}
+        )
+
+    def summarize_items_parallel(self, items: List[DirectoryItem], max_words: int = 100) -> Dict[str, Dict]:
+        """
+        Summarize multiple DirectoryItems in parallel.
+
+        Args:
+            items (List[DirectoryItem]): List of DirectoryItems to summarize
+            max_words (int): Maximum words per summary
+
+        Returns:
+            Dict[str, Dict]: Dictionary mapping file paths to their summaries
+        """
+        if self.is_local:
+            logger.warning('Local summarization is not implemented yet.')
+            return {item.path: {"summary": "", "short_summary": ""} for item in items}
+
+        # Filter out items that don't need summarization
+        items_to_summarize = [
+            item for item in items 
+            if item.metadata.get('type') == 'file' 
+            and (not item.summary or item.content_hash != item.metadata.get('content_hash'))
+        ]
+
+        if not items_to_summarize:
+            return {}
+
+        # Process items in batches to avoid overwhelming the API
+        results = {}
+        for i in range(0, len(items_to_summarize), self.batch_size):
+            batch = items_to_summarize[i:i + self.batch_size]
+            batch_results = self._process_batch(batch, max_words)
+            results.update(batch_results)
+            
+            # Small delay between batches to help with rate limiting
+            if i + self.batch_size < len(items_to_summarize):
+                time.sleep(1)
+
+        return results
+
+    def _process_batch(self, items: List[DirectoryItem], max_words: int) -> Dict[str, Dict]:
+        """
+        Process a batch of items using a thread pool.
+
+        Args:
+            items (List[DirectoryItem]): Batch of items to process
+            max_words (int): Maximum words per summary
+
+        Returns:
+            Dict[str, Dict]: Dictionary mapping file paths to their summaries
+        """
+        results = {}
+        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+            future_to_item = {
+                executor.submit(self._summarize_item, item, max_words): item
+                for item in items
+            }
+
+            for future in as_completed(future_to_item):
+                item = future_to_item[future]
+                try:
+                    summary_result = future.result()
+                    if summary_result:
+                        results[item.path] = summary_result
+                        # Update the item with new summaries
+                        item.summary = summary_result.get('summary', '')
+                        item.short_summary = summary_result.get('short_summary', '')
+                        item.metadata['content_hash'] = item.content_hash
+                except Exception as e:
+                    logger.error(f"Error processing {item.path}: {str(e)}")
+                    results[item.path] = {"summary": "", "short_summary": ""}
+
+        return results
+
+    def _summarize_item(self, item: DirectoryItem, max_words: int) -> Dict[str, str]:
+        """
+        Summarize a single DirectoryItem.
+
+        Args:
+            item (DirectoryItem): Item to summarize
+            max_words (int): Maximum words in summary
+
+        Returns:
+            Dict[str, str]: Dictionary containing summary and short_summary
+        """
+        try:
+            if not item.content:
+                return {"summary": "", "short_summary": ""}
+
+            if len(item.content) > 5000:
+                return self._summarize_large_content(item.name, item.content, max_words)
+            else:
+                return self._summarize_purpose_api(item.name, item.content, max_words)
+        except Exception as e:
+            logger.error(f"Error summarizing {item.path}: {str(e)}")
+            return {"summary": "", "short_summary": ""}
 
     def summarize_content(self, item: DirectoryItem, max_words: int = 100, force_refresh: bool = False) -> dict:
         """
@@ -481,10 +648,24 @@ class FileSummarizer:
         chunks = [content[i:i + chunk_size] for i in range(0, len(content), chunk_size)]
         summaries = []
 
-        for idx, chunk in enumerate(chunks):
-            logger.info(f"Summarizing chunk {idx + 1}/{len(chunks)}")
-            summary_dict = self._summarize_purpose_api(file_name, chunk, max_words)
-            summaries.append(summary_dict.get('summary', ''))
+        with ThreadPoolExecutor(max_workers=self.concurrent_chunks) as executor:
+            futures = []
+            for idx, chunk in enumerate(chunks):
+                future = executor.submit(
+                    self._summarize_purpose_api,
+                    f"{file_name}_chunk_{idx}",
+                    chunk,
+                    max_words
+                )
+                futures.append(future)
+
+            for future in as_completed(futures):
+                try:
+                    result = future.result()
+                    if result and result.get('summary'):
+                        summaries.append(result['summary'])
+                except Exception as e:
+                    logger.error(f"Error processing chunk: {str(e)}")
 
         # Combine summaries
         combined_summary = "\n".join(summaries)
@@ -500,6 +681,7 @@ class FileSummarizer:
 
         return {'summary': combined_summary, 'short_summary': short_summary}
     
+    @cached_api_call
     def _summarize_purpose_api(self, file_name: str, content: str, max_length: int, is_short: bool=False) -> dict:
         """
         Summarizes the content using the OpenAI API.

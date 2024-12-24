@@ -4,6 +4,13 @@
 **No Breaking Changes. Safe to Bump**
 **Full Changelog**: [v0.2.3...v0.2.4](https://github.com/nashdean/dirmapper-core/compare/v0.2.3...v0.2.4)
 
+### Performance Improvements
+- Added disk-based caching for API responses to reduce redundant calls
+- Implemented concurrent processing for directory level summarization
+- Optimized large file processing with parallel chunk summarization
+- Added TTL-based cache expiration to ensure freshness of summaries
+- Improved batch processing with dynamic chunk sizes
+
 ## [0.2.3] - 2024-12-22 : Pre-release
 **No Breaking Changes. Safe to Bump**
 **Full Changelog**: [v0.2.2...v0.2.3](https://github.com/nashdean/dirmapper-core/compare/v0.2.2...v0.2.3)
