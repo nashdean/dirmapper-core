@@ -606,18 +606,29 @@ class FileSummarizer:
         Returns:
             dict: The combined summary of all chunks and a short summary.
         """
-        chunk_size = 4000  # Adjust based on API limits
-        chunks = [content[i:i + chunk_size] for i in range(0, len(content), chunk_size)]
+        chunks = [content[i:i + self.chunk_size] for i in range(0, len(content), self.chunk_size)]
+        total_chunks = len(chunks)
         summaries = []
 
         with ThreadPoolExecutor(max_workers=self.concurrent_chunks) as executor:
             futures = []
             for idx, chunk in enumerate(chunks):
+                chunk_key = self.cache.get_chunk_key(file_name, idx, total_chunks)
+                cached_result = self.cache.get(chunk_key)
+                
+                if cached_result:
+                    logger.info(f"🔵 Using cached chunk {idx + 1}/{total_chunks} for {file_name}")
+                    summaries.append(cached_result.get('summary', ''))
+                    continue
+
                 future = executor.submit(
-                    self._summarize_purpose_api,
-                    f"{file_name}_chunk_{idx}",
+                    self._summarize_chunk,
+                    chunk_key,
+                    file_name,
                     chunk,
-                    max_words
+                    max_words,
+                    idx,
+                    total_chunks
                 )
                 futures.append(future)
 
@@ -629,20 +640,49 @@ class FileSummarizer:
                 except Exception as e:
                     logger.error(f"Error processing chunk: {str(e)}")
 
-        # Combine summaries
+        # Combine and summarize
+        if not summaries:
+            return {"summary": "", "short_summary": ""}
+
         combined_summary = "\n".join(summaries)
+        final_key = self.cache.get_chunk_key(file_name, -1, total_chunks)  # Special key for final summary
         
-        # Summarize the combined summary based on max_words guidelines
-        combined_summary = self._summarize_purpose_api(file_name, combined_summary, max_words).get('summary', '')
+        cached_final = self.cache.get(final_key)
+        if cached_final:
+            logger.info(f"🔵 Using cached final summary for {file_name}")
+            return cached_final
 
-        print("Combined Summary: ", combined_summary)
-        logger.info(f"Final Combined Summary Length: {len(combined_summary)}")
-        # Generate a short summary
-        short_summary = self._summarize_purpose_api(file_name, combined_summary, self.max_short_summary_characters, is_short=True).get('short_summary', '')
-        print("Short Summary: ", short_summary)
+        # Generate final summaries
+        final_result = self._summarize_purpose_api(file_name, combined_summary, max_words)
+        if final_result:
+            self.cache.set(final_key, final_result)
 
-        return {'summary': combined_summary, 'short_summary': short_summary}
-    
+        return final_result
+
+    def _summarize_chunk(self, chunk_key: str, file_name: str, chunk: str, 
+                        max_words: int, chunk_idx: int, total_chunks: int) -> Dict[str, str]:
+        """Summarize a single chunk with caching."""
+        try:
+            cached_result = self.cache.get(chunk_key)
+            if cached_result:
+                logger.info(f"🔵 Using cached chunk {chunk_idx + 1}/{total_chunks} for {file_name}")
+                return cached_result
+
+            logger.info(f"🔄 Processing chunk {chunk_idx + 1}/{total_chunks} for {file_name}")
+            result = self._summarize_purpose_api(
+                f"{file_name}_chunk_{chunk_idx}",
+                chunk,
+                max_words
+            )
+            
+            if result and result.get('summary'):
+                self.cache.set(chunk_key, result)
+            
+            return result
+        except Exception as e:
+            logger.error(f"Error processing chunk {chunk_idx + 1}/{total_chunks}: {str(e)}")
+            return {"summary": "", "short_summary": ""}
+
     @cached_api_call
     def _summarize_purpose_api(self, file_name: str, content: str, max_length: int, is_short: bool=False) -> dict:
         """
