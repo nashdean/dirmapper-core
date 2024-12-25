@@ -11,6 +11,35 @@
 - Added TTL-based cache expiration to ensure freshness of summaries
 - Improved batch processing with dynamic chunk sizes
 
+### Cache Module
+- Added new `cache.py` module in utils for centralized caching functionality
+- Moved SummaryCache class and cached_api_call decorator from summarizer.py
+- Added improved error handling and logging for cache operations
+- Implemented clean separation of concerns for caching logic
+- Added cache performance monitoring and statistics
+- Improved logging with clear visual indicators for cache hits/misses
+- Added periodic cache statistics reporting
+- Added emoji indicators for better log readability
+
+### Cache Improvements
+- Extended cache TTL to 30 days for better persistence
+- Added content normalization to increase cache hits
+- Implemented consistent chunk caching for large files
+- Added intelligent cache key generation
+- Improved handling of path variations in cache keys
+- Added chunk-level caching for better granularity
+- Added directory-level caching for better performance
+- Implemented parent context caching for improved summaries
+- Added smart invalidation based on directory content hashes
+- Enhanced cache keys with level-based directory context
+- Improved caching granularity for directory structures
+
+### DirectoryStructure Class
+- Added content_hash property for directory structure caching
+- Added level-based hash calculation for granular caching
+- Improved hash consistency with sorted items
+- Added hash invalidation on structure changes
+
 ## [0.2.3] - 2024-12-22 : Pre-release
 **No Breaking Changes. Safe to Bump**
 **Full Changelog**: [v0.2.2...v0.2.3](https://github.com/nashdean/dirmapper-core/compare/v0.2.2...v0.2.3)

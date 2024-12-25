@@ -6,6 +6,8 @@ from typing import List, Dict, Optional, Union
 from dirmapper_core.ignore.ignore_list_reader import IgnorePattern
 from dirmapper_core.models.directory_item import DirectoryItem
 from dirmapper_core.utils.logger import logger
+import hashlib
+import json
 
 class DirectoryStructure:
     """
@@ -13,9 +15,39 @@ class DirectoryStructure:
     """
     def __init__(self):
         self.items: List[DirectoryItem] = []
+        self._content_hash: Optional[str] = None
+
+    @property
+    def content_hash(self) -> str:
+        """Calculate a hash of the directory structure's content."""
+        if self._content_hash is None:
+            # Sort items by path for consistent hashing
+            sorted_items = sorted(self.items, key=lambda x: x.path)
+            # Include metadata in hash calculation
+            content = json.dumps([{
+                'path': item.path,
+                'level': item.level,
+                'content_hash': item.content_hash,
+                'metadata': item.metadata
+            } for item in sorted_items], sort_keys=True)
+            self._content_hash = hashlib.sha256(content.encode()).hexdigest()
+        return self._content_hash
 
     def add_item(self, item: DirectoryItem):
+        """Add an item and invalidate the content hash."""
         self.items.append(item)
+        self._content_hash = None  # Invalidate hash when structure changes
+
+    def get_level_hash(self, level: int) -> str:
+        """Calculate a hash for a specific level in the directory structure."""
+        level_items = [item for item in self.items if item.level == level]
+        sorted_items = sorted(level_items, key=lambda x: x.path)
+        content = json.dumps([{
+            'path': item.path,
+            'content_hash': item.content_hash,
+            'metadata': item.metadata
+        } for item in sorted_items], sort_keys=True)
+        return hashlib.sha256(content.encode()).hexdigest()
 
     def to_list(self) -> List[DirectoryItem]:
         return self.items

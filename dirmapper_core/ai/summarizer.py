@@ -128,14 +128,7 @@ class DirectorySummarizer:
 
     def _summarize_api(self, directory_structure: DirectoryStructure, meta_data: dict) -> dict:
         """
-        Summarizes the directory structure using the OpenAI API.
-
-        Args:
-            directory_structure (DirectoryStructure): The directory structure to summarize.
-            meta_data (dict): Metadata about the directory structure.
-
-        Returns:
-            dict: The summarized directory structure with summaries in __keys__.content.
+        Summarizes the directory structure using the OpenAI API with improved caching.
         """
         root_path = meta_data.get('root_path', '')
         
@@ -167,11 +160,31 @@ class DirectorySummarizer:
             for idx, paginated_structure in enumerate(paginated_structures, 1):
                 if self.use_level_pagination:
                     level = len(paginated_structure.items[0].path.split('/')) - 1 if paginated_structure.items else 0
-                    logger.info(f"Processing level {level} (page {idx}/{total_pages})")
-                    logger.info(f"Current level contains {len(paginated_structure.items)} items")
-                else:
-                    logger.info(f"Processing page {idx}/{total_pages}")
-                    logger.info(f"Current page contains {len(paginated_structure.items)} items")
+                    # Try to get cached directory summary for this level
+                    items_hash = self.cache._get_contents_hash([item.metadata for item in paginated_structure.items])
+                    dir_key = self.cache.get_directory_key(
+                        meta_data.get('root_path', ''),
+                        items_hash,
+                        level
+                    )
+                    cached_summary = self.cache.get(dir_key)
+                    
+                    if cached_summary:
+                        logger.info(f"🔵 Using cached summary for level {level}")
+                        summarized_structure = self._merge_summaries(summarized_structure, cached_summary)
+                        continue
+                    
+                    # Cache parent context if available
+                    if level > 0:
+                        parent_items = [item for item in directory_structure.items if item.level < level]
+                        parent_key = self.cache.get_parent_context_key(
+                            meta_data.get('root_path', ''),
+                            level - 1
+                        )
+                        self.cache.set(parent_key, {
+                            'items': [item.metadata for item in parent_items],
+                            'level': level - 1
+                        })
                 
                 # Log the first few items in this batch for context
                 sample_items = [item.path for item in paginated_structure.items[:3]]
@@ -181,6 +194,11 @@ class DirectorySummarizer:
                     paginated_structure,
                     self.max_short_summary_characters     
                 )
+                
+                # Cache the directory summary if using level pagination
+                if self.use_level_pagination and partial_summary:
+                    self.cache.set(dir_key, partial_summary)
+                
                 summarized_structure = self._merge_summaries(summarized_structure, partial_summary)
                 logger.info(f"Completed processing batch {idx}/{total_pages}")
             
@@ -283,35 +301,58 @@ class DirectorySummarizer:
         Summarizes the directory structure using the OpenAI API.
 
         Args:
-            directory_structure (DirectoryStructure): The directory structure to summarize with __keys__.
-            short_summary_length (int): The maximum character length for each summary.
+            directory_structure (DirectoryStructure): The directory structure to summarize.
+            short_summary_length (int): The maximum word length for each summary.
 
         Returns:
-            dict: The summarized directory structure in JSON format with summaries in __keys__.content.
+            dict: The summarized directory structure in JSON format with summaries for each file/folder.
         """
+        # Add parent context to improve summaries
+        parent_context = None
+        if self.use_level_pagination:
+            level = len(directory_structure.items[0].path.split('/')) - 1 if directory_structure.items else 0
+            if level > 0:
+                parent_key = self.cache.get_parent_context_key(
+                    directory_structure.items[0].path,
+                    level - 1
+                )
+                parent_context = self.cache.get(parent_key)
+
+        # Set cache context for the decorator using directory structure's content hash
+        self.cache_context = f"structure_{directory_structure.content_hash}"
+        if parent_context:
+            self.cache_context += f"_level_{parent_context.get('level', '')}"
+
         simple_json_structure = directory_structure.to_nested_dict(['type', 'short_summary'])
         tree_structure = TreeStyle.write_structure(directory_structure)
-        logger.info("Simple JSON Structure: " + json.dumps(simple_json_structure, indent=2))
-
+        
         messages = [
             {
                 "role": "system",
                 "content": "You are a directory structure analyzer. Respond only with valid JSON."
-            },
-            {
-                "role": "user", 
-                "content": (
-                    "Analyze the following directory structure:\n\n"
-                    f"{tree_structure}\n\n"
-                    "Use the following JSON object that matches the input structure to generate "
-                    "`short_summary` fields overwriting the existing `short_summary` field. Use the existing `short_summary` value "
-                    "for additional context about the existing file if it is not labled 'Empty File'. Generate a short summary for "
-                    "each folder based on the files it contains and also store this in the field `short_summary`. "
-                    f"Do not modify the structure in any other way. Write each short summary in {short_summary_length} characters "
-                    f"or less. Here is the formatted JSON:\n\n{json.dumps(simple_json_structure, indent=2)}"
-                )
             }
         ]
+
+        # Add parent context if available
+        if parent_context:
+            messages.append({
+                "role": "system",
+                "content": f"Parent directory context: {json.dumps(parent_context)}"
+            })
+
+        messages.append({
+            "role": "user", 
+            "content": (
+                "Analyze the following directory structure:\n\n"
+                f"{tree_structure}\n\n"
+                "Use the following JSON object that matches the input structure to generate "
+                "`short_summary` fields overwriting the existing `short_summary` field. Use the existing `short_summary` value "
+                "for additional context about the existing file if it is not labled 'Empty File'. Generate a short summary for "
+                "each folder based on the files it contains and also store this in the field `short_summary`. "
+                f"Do not modify the structure in any other way. Write each short summary in {short_summary_length} characters "
+                f"or less. Here is the formatted JSON:\n\n{json.dumps(simple_json_structure, indent=2)}"
+            )
+        })
         logger.info("Sending request to API for summarization...")
         logger.info(f"Structure contains {len(directory_structure.items)} items "
                    f"({len(directory_structure.get_files())} files, "

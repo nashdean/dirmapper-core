@@ -1,7 +1,7 @@
 import hashlib
 import functools
 import re
-from typing import Optional, Dict, Any, Union
+from typing import Optional, Dict, Any, Union, List
 import diskcache
 from dirmapper_core.utils.logger import logger
 
@@ -20,6 +20,36 @@ class SummaryCache:
         self.ttl = ttl_days * 24 * 60 * 60  # Convert days to seconds
         self.hits = 0
         self.misses = 0
+
+    def get_directory_key(self, directory_path: str, items_hash: str, level: Optional[int] = None) -> str:
+        """
+        Generate a cache key for directory summaries.
+        
+        Args:
+            directory_path (str): Path to the directory
+            items_hash (str): Hash of the directory's contents
+            level (Optional[int]): Directory level for level-based caching
+            
+        Returns:
+            str: Cache key for the directory
+        """
+        normalized_path = self._normalize_context(directory_path)
+        context = f"{normalized_path}_{items_hash}"
+        if level is not None:
+            context += f"_level_{level}"
+        return f"dir_{hashlib.sha256(context.encode()).hexdigest()[:32]}"
+
+    def get_parent_context_key(self, directory_path: str, parent_level: int) -> str:
+        """Generate a cache key for parent directory context."""
+        normalized_path = self._normalize_context(directory_path)
+        return f"parent_{hashlib.sha256(f'{normalized_path}_{parent_level}'.encode()).hexdigest()[:32]}"
+
+    def _get_contents_hash(self, items: List[Dict[str, Any]]) -> str:
+        """Generate a hash of directory contents for cache invalidation."""
+        # Sort items by path for consistent hashing
+        sorted_items = sorted(items, key=lambda x: x.get('path', ''))
+        content = json.dumps(sorted_items, sort_keys=True)
+        return hashlib.sha256(content.encode()).hexdigest()
 
     def _normalize_content(self, content: str) -> str:
         """Normalize content to increase cache hits."""
