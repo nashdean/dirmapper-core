@@ -107,6 +107,7 @@
 - Added `get_directories()` method to return a list of DirectoryItems that are all of metadata type `directory`
 - Improved `get_files()` method to handle lists of strings for exclusions or inclusions by converting them into `IgnorePattern` objects
 - Added error handling and logging for `get_files()` method
+- Added `use_json_style` parameter to `to_nested_dict()` method allowing use of richer JSONStyle format while maintaining backward compatibility
 
 ### PathIgnorer Class
 - Refactored to manage ignoring patterns without focusing on root directories
@@ -118,7 +119,6 @@
 ### Summarization
 - Added more detailed `INFO` logs including directory size and files being summarized (optional argument)
 - Cache summaries by checking if the DirectoryItem's `content_hash` has changed
-
 
 ## [0.2.1] - 2024-12-17
 **No Breaking Changes. Safe to Bump**

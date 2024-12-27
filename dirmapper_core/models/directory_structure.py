@@ -246,7 +246,7 @@ class DirectoryStructure:
         # Start processing from root
         process_dict(nested_dict)
 
-    def to_nested_dict(self, metadata_fields: Optional[List[str]] = None) -> Dict[str, Union[Dict, None]]:
+    def to_nested_dict(self, metadata_fields: Optional[List[str]] = None, use_json_style: bool = False) -> Dict[str, Union[Dict, None]]:
         """
         Convert the structure to a nested dictionary format with metadata under __keys__.
         
@@ -254,32 +254,17 @@ class DirectoryStructure:
             metadata_fields (Optional[List[str]]): List of metadata fields to include.
                 If None, include all metadata fields.
                 If empty list, set __keys__ to None.
+            use_json_style (bool): If True, uses JSONStyle's richer structure.
+                If False, uses the simpler legacy format for backward compatibility.
                 
         Returns:
             Dict[str, Union[Dict, None]]: The directory structure as a nested dictionary.
-        
-        Example:
-            {
-                'folder1': {
-                    'file1.txt': {
-                        '__keys__': {
-                            'type': 'file',
-                            'summary': 'This is a file',
-                            'tags': ['tag1', 'tag2']
-                        }
-                    },
-                    'subfolder1': {
-                        'file2.txt': {
-                            '__keys__': {
-                                'type': 'file',
-                                'summary': 'This is another file',
-                                'tags': ['tag3', 'tag4']
-                            }
-                        }
-                    }
-                }
-            }
         """
+        if use_json_style:
+            from dirmapper_core.styles.json_style import JSONStyle
+            return JSONStyle.write_structure(self)
+
+        # Legacy format
         nested_dict = {}
 
         for item in self.items:

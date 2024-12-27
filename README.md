@@ -365,7 +365,7 @@ structure.add_item(DirectoryItem('/path/to/game/snake.py', 1, 'snake.py', {
 }))
 
     # Convert to nested dictionary
-    nested_dict = structure.to_nested_dict()
+    nested_dict = structure.to_nested_dict(use_json_style=False)
 
     # Print the result in a readable format
     print(json.dumps(nested_dict, indent=2))
@@ -406,6 +406,7 @@ The above code will generate the following output to the console:
   }
 }
 ```
+If you chose to set the parameter `use_json_style` in the method `to_nested_dict` to True, the output would be a JSON-style dict from the [JSONStyle Class](./dirmapper_core/styles/json_style.py).
 
 ### Working with DirectoryItem Class
 The most basic element of a directory structure is an item represented by the `DirectoryItem` class. This class is an abstracted object representing a `file` or `directory`. Each object holds valuable metadata about the underlying item, including summaries of the contents which can be generated with AI.
