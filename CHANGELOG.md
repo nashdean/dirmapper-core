@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.2.4] - Unreleased : Release
+## [0.2.4] - 2024-12-27 : Pre-Release
 **No Breaking Changes. Safe to Bump**
 **Full Changelog**: [v0.2.3...v0.2.4](https://github.com/nashdean/dirmapper-core/compare/v0.2.3...v0.2.4)
 
@@ -63,6 +63,9 @@
 - Added new ContentService class to handle content generation
 - Moved content generation logic out of JSONStyle to break circular dependencies
 - Improved separation of concerns between styles and AI content generation
+
+### Miscellaneous
+- Updated README with fixes.
 
 ## [0.2.3] - 2024-12-22 : Pre-release
 **No Breaking Changes. Safe to Bump**
