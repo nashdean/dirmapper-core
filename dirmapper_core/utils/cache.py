@@ -2,6 +2,7 @@ import hashlib
 import functools
 import re
 from typing import Optional, Dict, Any, Union, List
+from dirmapper_core.models.directory_structure import DirectoryStructure
 import diskcache
 from dirmapper_core.utils.logger import logger
 
@@ -129,33 +130,26 @@ class SummaryCache:
         }
 
 def cached_api_call(func):
-    """
-    Decorator to cache API calls with improved logging.
-    
-    Usage:
-        @cached_api_call
-        def my_api_method(self, *args, **kwargs):
-            # Method implementation
-    """
+    """Decorator to cache API calls with improved logging."""
     @functools.wraps(func)
     def wrapper(self, *args, **kwargs):
         if not hasattr(self, 'cache'):
             return func(self, *args, **kwargs)
 
         try:
-            # Generate consistent cache key
-            file_name = args[0] if args else ""
-            content = args[1] if len(args) > 1 else ""
+            # Get the DirectoryStructure object from args
+            directory_structure = args[0] if args and isinstance(args[0], DirectoryStructure) else None
             
-            # Include relevant parameters in cache key
-            params = {
-                'max_length': kwargs.get('max_length', 0),
-                'is_short': kwargs.get('is_short', False)
-            }
+            # Generate cache key components
+            components = [
+                func.__name__,
+                directory_structure.content_hash if directory_structure else '',
+                str(kwargs)
+            ]
             
             cache_key = self.cache.get_cache_key(
-                content,
-                f"{func.__name__}_{file_name}_{params}"
+                '_'.join(components),
+                getattr(self, 'cache_context', '')
             )
             
             cached_result = self.cache.get(cache_key)

@@ -54,20 +54,28 @@ structure = generator.generate() # Returns str
 Generating a directory structure results in a formatted string depending on your style and formatter. Here is an example of the `TreeStyle`:
 ```
 /path/to/root/directory
-├── requirements.txt
-├── tests/
-│   ├── test1.py
-│   └── __init__.py
-├── docs/
-├── README.md
-├── setup.py
+├── .devcontainer
+│   ├── devcontainer.json
+│   └── Dockerfile
+├── .DS_Store
+├── .git
 ├── .gitignore
-├── src/
-│   └── snake_game/
-│       ├── __init__.py
-│       ├── utils/
-│       │   └── helper.py
-│       └── main.py
+├── .mapping-ignore
+├── game
+│   ├── __init__.py
+│   ├── colors.py
+│   ├── config.py
+│   ├── display.py
+│   ├── fonts.py
+│   ├── game_loop.py
+│   ├── obstacles.py
+│   ├── score.py
+│   └── snake.py
+├── high_scores.yaml
+├── main.py
+├── main.spec
+├── README.md
+└── requirements.txt
 ```
 See the [styles](dirmapper_core/styles) folder for all valid style examples.
 
@@ -143,7 +151,7 @@ template_path = 'path/to/your/template.json'
 # Define the structure template
 structure_template = {
     "meta": {
-        "version": "1.1",
+        "version": "2.0",
         "source": "dirmapper",
         "author": "root",
         "root_path": template_path,
