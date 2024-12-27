@@ -74,7 +74,7 @@ class DirectorySummarizer:
                 raise ValueError("API token is not set. Please set the API token in the preferences.")
             self.client = OpenAI(api_key=api_token)
 
-    def summarize(self, directory_structure: DirectoryStructure) -> str:
+    def summarize(self, directory_structure: DirectoryStructure) -> dict:
         """
         Summarizes the directory structure using the OpenAI API or local model.
 
@@ -82,30 +82,7 @@ class DirectorySummarizer:
             directory_structure (DirectoryStructure): The directory structure to summarize.
 
         Returns:
-            str: The directory structure with summaries for each file/folder in the specified format.
-        
-        Example:
-            Parameters:
-                directory_structure = DirectoryStructure() # Initialized DirectoryStructure object
-            
-            Result:
-                {
-                    "dir1/": {
-                        "file1.txt": {
-                            "summary": "This file contains the data for the first task.",
-                            "short_summary": "This file contains the data for the first task."
-                        },
-                        "file2.txt": {
-                            "summary": "This file contains the data for the second task.",
-                            "short_summary": "This file contains the data for the second task."
-                        },
-                        "subdir1/": {
-                            "file3.txt": {
-                                "summary": "This file contains the data for the third task.",
-                                "short_summary": "This file contains the data for the third task."
-                            }
-                        }
-                    }
+            dict: The summarized directory structure with summaries for each file/folder and the project summary.
         """
         if self.is_local:
             logger.warning('Localized summary functionality under construction. Set preferences to use the api by setting `is_local` to False.')
@@ -117,14 +94,23 @@ class DirectorySummarizer:
         }
 
         logger.info(f"Summarizing directory structure for {len(directory_structure.items)} items.  {len(directory_structure.get_files())} files, {len(directory_structure.get_directories())} directories.")
+        summarized_structure = {}
         # Summarize the structure
-        summarized_structure = self._summarize_api(directory_structure, meta_data)
+        summarized_structure['summarized_structure'] = self._summarize_api(directory_structure, meta_data)
 
         # Merge summaries back into the original structure
         if isinstance(summarized_structure, dict):
-            directory_structure.merge_nested_dict(summarized_structure)
+            directory_structure.merge_nested_dict(summarized_structure['summarized_structure'])
+
+        # Generate project summary
+        project_summary = self.summarize_project(directory_structure)
+        summarized_structure["project_summary"] = project_summary
 
         return summarized_structure
+
+    def clear_cache(self):
+        """Clear the cache."""
+        self.cache.clear()
 
     def _summarize_api(self, directory_structure: DirectoryStructure, meta_data: dict) -> dict:
         """
@@ -416,6 +402,81 @@ class DirectorySummarizer:
             else:
                 original[key] = value
         return original
+    
+    def summarize_project(self, directory_structure: DirectoryStructure) -> str:
+        """
+        Generates a summary of the entire project based on the directory structure.
+
+        Args:
+            directory_structure (DirectoryStructure): The directory structure of the project.
+
+        Returns:
+            str: The summary of the entire project.
+        """
+        # Aggregate summaries
+        aggregated_summaries = self._aggregate_summaries(directory_structure)
+
+        # Generate project summary using OpenAI API
+        project_summary = self._generate_project_summary(aggregated_summaries)
+
+        return project_summary
+
+    def _aggregate_summaries(self, directory_structure: DirectoryStructure) -> str:
+        """
+        Aggregates individual summaries into a single string.
+
+        Args:
+            directory_structure (DirectoryStructure): The summarized directory structure.
+
+        Returns:
+            str: The aggregated summaries as a single string.
+        """
+        summaries = []
+
+        def traverse_structure(structure: dict, path: str = ""):
+            for item in structure.items:
+                if item.short_summary:
+                    summaries.append(f"{path}/{item.name}: {item.short_summary}")
+                if item.type == 'directory':
+                    traverse_structure(item, f"{path}/{item.name}")
+
+        traverse_structure(directory_structure)
+
+        aggregated_summaries = "\n".join(summaries)
+        return aggregated_summaries
+
+    def _generate_project_summary(self, aggregated_summaries: str) -> str:
+        """
+        Generates a project summary using the OpenAI API based on aggregated summaries.
+
+        Args:
+            aggregated_summaries (str): The aggregated summaries as a single string.
+
+        Returns:
+            str: The project summary.
+        """
+        prompt = (
+            "Generate a concise summary of the following project based on the provided summaries:\n\n"
+            f"{aggregated_summaries}\n\n"
+            "Summarize the project in a few sentences."
+        )
+
+        try:
+            response = self.client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": "You are an assistant that generates project summaries."},
+                    {"role": "user", "content": prompt}
+                ],
+                max_tokens=150,
+                temperature=0.7
+            )
+
+            project_summary = response['choices'][0]['message']['content'].strip()
+            return project_summary
+        except Exception as e:
+            logger.error(f"Error generating project summary: {str(e)}")
+            return "Error generating project summary."
 
 class FileSummarizer:
     """
@@ -458,6 +519,10 @@ class FileSummarizer:
             temperature=temperature,
             response_format={"type": "json_object"}
         )
+    
+    def clear_cache(self):
+        """Clear the cache."""
+        self.cache.clear()
 
     def summarize_items_parallel(self, items: List[DirectoryItem], max_words: int = 100) -> Dict[str, Dict]:
         """

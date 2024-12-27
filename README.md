@@ -269,6 +269,8 @@ print(TreeStyle.write_structure_with_short_summaries(structure))
 
 In the above example, you see that the __*result*__ from the `DirectorySummarizer` is a dict for easy JSON convertability. If you want to view the directory in a *tree* style, you can use the `write_structure_with_short_summaries` method which takes a DirectoryStructure object.
 
+For more details on the `DirectorySummarizer` class, see the [summarizer.py](dirmapper_core/ai/summarizer.py) file. You can also read the [AI Summarizer](dirmapper_core/ai/README.md) documentation for more information.
+
 ### Summarizing Files
 You can summarize individual files using the `FileSummarizer` class. Here is an example.
 ```python

@@ -39,6 +39,19 @@
 - Added level-based hash calculation for granular caching
 - Improved hash consistency with sorted items
 - Added hash invalidation on structure changes
+- Added project level summarization for directory structures by combining file summaries
+
+### ContentGenerator Class
+- Introduced `ContentGenerator` class for generating file content using OpenAI API.
+- Added methods for building prompts and generating content based on directory structure.
+- Improved content generation with context-aware prompts.
+
+### AI Module Documentation
+- Added new `README.md` in dirmapper_core/ai folder
+- Documented usage of `DirectorySummarizer` and `FileSummarizer` classes
+- Explained caching mechanism and how it is incorporated
+- Detailed parallelization techniques used in summarization
+- Provided examples for using the summarizers and clearing the cache
 
 ## [0.2.3] - 2024-12-22 : Pre-release
 **No Breaking Changes. Safe to Bump**

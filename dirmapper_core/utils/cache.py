@@ -1,5 +1,6 @@
 import hashlib
 import functools
+import json
 import re
 from typing import Optional, Dict, Any, Union, List
 from dirmapper_core.models.directory_structure import DirectoryStructure
@@ -21,6 +22,14 @@ class SummaryCache:
         self.ttl = ttl_days * 24 * 60 * 60  # Convert days to seconds
         self.hits = 0
         self.misses = 0
+    
+    def clear(self):
+        """Clear all cache entries."""
+        try:
+            self.cache.clear()
+            logger.info("Cache cleared successfully.")
+        except Exception as e:
+            logger.error(f"Error clearing cache: {str(e)}")
 
     def get_directory_key(self, directory_path: str, items_hash: str, level: Optional[int] = None) -> str:
         """
@@ -137,8 +146,14 @@ def cached_api_call(func):
             return func(self, *args, **kwargs)
 
         try:
-            # Get the DirectoryStructure object from args
+            # Get the DirectoryStructure object and file name from args
             directory_structure = args[0] if args and isinstance(args[0], DirectoryStructure) else None
+            file_name = args[0] if args and isinstance(args[0], str) else "unknown"
+            if directory_structure:
+                if directory_structure.items:
+                    file_name = "DirectoryStructure @"+directory_structure.items[0].path.split('/')[-1]
+                else:
+                    file_name = directory_structure.content_hash
             
             # Generate cache key components
             components = [
