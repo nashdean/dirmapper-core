@@ -104,6 +104,7 @@ class DirectorySummarizer:
 
         # Generate project summary
         project_summary = self.summarize_project(directory_structure)
+        
         summarized_structure["project_summary"] = project_summary
 
         return summarized_structure
@@ -418,6 +419,9 @@ class DirectorySummarizer:
 
         # Generate project summary using OpenAI API
         project_summary = self._generate_project_summary(aggregated_summaries)
+
+        # Update directory structure with project summary
+        directory_structure.description = project_summary
 
         return project_summary
 

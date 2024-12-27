@@ -14,6 +14,7 @@ class DirectoryStructure:
     Class to represent a directory structure.
     """
     def __init__(self):
+        self.description = None
         self.items: List[DirectoryItem] = []
         self._content_hash: Optional[str] = None
 

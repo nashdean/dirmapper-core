@@ -1,4 +1,5 @@
 from typing import List
+from dirmapper_core.ai.summarizer import DirectorySummarizer
 from openai import OpenAI
 from dirmapper_core.models.directory_structure import DirectoryStructure
 from dirmapper_core.utils.logger import logger
@@ -57,7 +58,11 @@ class ContentGenerator:
         Returns:
             str: The prompt for the OpenAI API.
         """
-        project_summary = "This project is about..."
+        
+        if not directory_structure.description:
+            DirectorySummarizer().summarize_project(directory_structure)
+
+        project_summary = f"This project is about: {directory_structure.description}\n"
         directory_context = "The project has the following structure:\n"
         
         # Create a hierarchical view of items
