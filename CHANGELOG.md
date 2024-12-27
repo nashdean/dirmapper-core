@@ -53,6 +53,11 @@
 - Detailed parallelization techniques used in summarization
 - Provided examples for using the summarizers and clearing the cache
 
+### Formatter Refactoring
+- Created new `BaseFormatter` class in separate file
+- Moved formatter implementations to depend on style objects passed through instructions
+- Removed direct style imports from formatter.py to fix circular dependencies
+
 ## [0.2.3] - 2024-12-22 : Pre-release
 **No Breaking Changes. Safe to Bump**
 **Full Changelog**: [v0.2.2...v0.2.3](https://github.com/nashdean/dirmapper-core/compare/v0.2.2...v0.2.3)
@@ -193,3 +198,11 @@
 ## [0.0.3] - 2024-10-30
 - Ported over CLI logic, abstracting it into `dirmapper-core` library
     - See Dirmap-CLI's [CHANGELOG.md](https://github.com/nashdean/dirmap-cli/blob/master/CHANGELOG.md) v1.1.0 for details
+
+## [Unreleased]
+
+### Formatter Refactoring
+- Created new `BaseFormatter` class in separate file
+- Moved formatter implementations to depend on style objects passed through instructions
+- Removed direct style imports from formatter.py to fix circular dependencies
+- Improved separation of concerns between formatters and styles

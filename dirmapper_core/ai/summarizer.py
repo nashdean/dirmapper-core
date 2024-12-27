@@ -2,7 +2,6 @@
 import copy
 import os
 from typing import List, Optional, Tuple, Dict
-from dirmapper_core.formatter.formatter import Formatter
 from dirmapper_core.models.directory_item import DirectoryItem
 from dirmapper_core.models.directory_structure import DirectoryStructure
 from dirmapper_core.styles.tree_style import TreeStyle
@@ -414,6 +413,9 @@ class DirectorySummarizer:
         Returns:
             str: The summary of the entire project.
         """
+        # Set cache context using the cache manager's project key generation
+        self.cache_context = self.cache.get_project_summary_key(directory_structure)
+        
         # Aggregate summaries
         aggregated_summaries = self._aggregate_summaries(directory_structure)
 
@@ -425,30 +427,7 @@ class DirectorySummarizer:
 
         return project_summary
 
-    def _aggregate_summaries(self, directory_structure: DirectoryStructure) -> str:
-        """
-        Aggregates individual summaries into a single string.
-
-        Args:
-            directory_structure (DirectoryStructure): The summarized directory structure.
-
-        Returns:
-            str: The aggregated summaries as a single string.
-        """
-        summaries = []
-
-        def traverse_structure(structure: dict, path: str = ""):
-            for item in structure.items:
-                if item.short_summary:
-                    summaries.append(f"{path}/{item.name}: {item.short_summary}")
-                if item.type == 'directory':
-                    traverse_structure(item, f"{path}/{item.name}")
-
-        traverse_structure(directory_structure)
-
-        aggregated_summaries = "\n".join(summaries)
-        return aggregated_summaries
-
+    @cached_api_call
     def _generate_project_summary(self, aggregated_summaries: str) -> str:
         """
         Generates a project summary using the OpenAI API based on aggregated summaries.
@@ -476,11 +455,30 @@ class DirectorySummarizer:
                 temperature=0.7
             )
 
-            project_summary = response['choices'][0]['message']['content'].strip()
+            project_summary = response.choices[0].message.content.strip()
             return project_summary
         except Exception as e:
             logger.error(f"Error generating project summary: {str(e)}")
             return "Error generating project summary."
+
+    def _aggregate_summaries(self, directory_structure: DirectoryStructure) -> str:
+        """
+        Aggregates individual summaries into a single string.
+
+        Args:
+            directory_structure (DirectoryStructure): The summarized directory structure.
+
+        Returns:
+            str: The aggregated summaries as a single string.
+        """
+        summaries = []
+        
+        # Get all items that have summaries
+        for item in directory_structure.items:
+            if item.short_summary:
+                summaries.append(f"{item.path}: {item.short_summary}")
+        
+        return "\n".join(summaries)
 
 class FileSummarizer:
     """

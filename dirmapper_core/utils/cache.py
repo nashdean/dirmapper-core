@@ -138,6 +138,70 @@ class SummaryCache:
             "hit_rate": (self.hits / (self.hits + self.misses)) * 100 if (self.hits + self.misses) > 0 else 0
         }
 
+    def get_project_summary_key(self, directory_structure: 'DirectoryStructure') -> str:
+        """
+        Generate a cache key for project-level summaries.
+        
+        Args:
+            directory_structure (DirectoryStructure): The directory structure being summarized
+            
+        Returns:
+            str: Cache key for the project summary
+        """
+        return f"project_{directory_structure.content_hash}"
+
+    def get_cache_name(self, obj: Any, func_name: str = "") -> tuple[str, str]:
+        """
+        Get a human-readable cache name and type for any supported object.
+        
+        Args:
+            obj: The object to generate a cache name for
+            func_name: The name of the function being cached
+            
+        Returns:
+            tuple[str, str]: (cache_name, cache_type)
+        """
+        from dirmapper_core.models.directory_structure import DirectoryStructure
+        from dirmapper_core.models.directory_item import DirectoryItem
+
+        # Check function name first for special cases
+        if "_generate_project_summary" in func_name:
+            return "", "project summary"
+            
+        if isinstance(obj, DirectoryStructure):
+            if obj.items:
+                root_dir = obj.items[0].path.split('/')[-1]
+                return f"{root_dir}", "directory structure"
+            return "Empty directory structure", "directory structure"
+            
+        elif isinstance(obj, DirectoryItem):
+            return obj.name, "file"
+            
+        elif isinstance(obj, str):
+            # For strings (like raw content or file paths)
+            if '/' in obj:  # If it's a path, just show the filename
+                return obj.split('/')[-1], "file"
+            if len(obj) > 30:  # If it's content, show truncated version
+                return f"{obj[:30]}...", "content"
+            return obj, "content"
+            
+        return "unknown", "unknown"
+
+    def get_cache_key_with_type(self, content: Union[str, Dict], context: str = "", cache_type: str = "") -> str:
+        """
+        Generate a consistent cache key that includes the type of content being cached.
+        
+        Args:
+            content: The content to hash
+            context: Additional context for the key
+            cache_type: Type of content being cached (e.g., "file", "directory", "project")
+            
+        Returns:
+            str: Cache key including type information
+        """
+        basic_key = self.get_cache_key(content, context)
+        return f"{cache_type}_{basic_key}" if cache_type else basic_key
+
 def cached_api_call(func):
     """Decorator to cache API calls with improved logging."""
     @functools.wraps(func)
@@ -146,47 +210,46 @@ def cached_api_call(func):
             return func(self, *args, **kwargs)
 
         try:
-            # Get the DirectoryStructure object and file name from args
-            directory_structure = args[0] if args and isinstance(args[0], DirectoryStructure) else None
-            file_name = args[0] if args and isinstance(args[0], str) else "unknown"
-            if directory_structure:
-                if directory_structure.items:
-                    file_name = "DirectoryStructure @"+directory_structure.items[0].path.split('/')[-1]
-                else:
-                    file_name = directory_structure.content_hash
+            # Get the first argument as our main object
+            obj = args[0] if args else None
+            
+            # Get cache name and type using the cache manager, passing function name
+            cache_name, cache_type = self.cache.get_cache_name(obj, func.__name__)
             
             # Generate cache key components
             components = [
                 func.__name__,
-                directory_structure.content_hash if directory_structure else '',
+                obj.content_hash if hasattr(obj, 'content_hash') else '',
                 str(kwargs)
             ]
             
-            cache_key = self.cache.get_cache_key(
+            # Generate cache key with type information
+            cache_key = self.cache.get_cache_key_with_type(
                 '_'.join(components),
-                getattr(self, 'cache_context', '')
+                getattr(self, 'cache_context', ''),
+                cache_type
             )
             
             cached_result = self.cache.get(cache_key)
             if cached_result is not None:
-                logger.info(f"🔵 Using cached summary for {file_name}")
+                logger.info(f"🔵 Using cached {cache_type} for {cache_name}")
                 return cached_result
             
-            logger.info(f"🔴 Cache miss - sending API request for {file_name}")
+            logger.info(f"🔴 Cache miss - sending API request for {cache_type} {cache_name}")
             result = func(self, *args, **kwargs)
             
             # Store in cache if result is valid
-            if result and (isinstance(result, dict) and any(result.values())):
+            if result and (isinstance(result, (dict, str)) and (isinstance(result, str) or any(result.values()))):
                 self.cache.set(cache_key, result)
             
             stats = self.cache.get_stats()
-            logger.info(f"Cache stats: {stats['hits']} hits, {stats['misses']} misses "
-                       f"({stats['hit_rate']:.1f}% hit rate)")
+            logger.debug(f"Cache stats: {stats['hits']} hits, {stats['misses']} misses "
+                      f"({stats['hit_rate']:.1f}% hit rate)")
             
             return result
             
         except Exception as e:
-            logger.error(f"Cache operation failed for {file_name}: {str(e)}")
+            logger.error(f"Cache operation failed for {cache_name}: {str(e)}")
             return func(self, *args, **kwargs)
             
     return wrapper

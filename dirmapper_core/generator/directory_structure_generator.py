@@ -8,7 +8,7 @@ from dirmapper_core.sort.sorting_strategy import NoSortStrategy, SortingStrategy
 from dirmapper_core.ignore.path_ignorer import PathIgnorer
 from dirmapper_core.utils.constants import STYLE_MAP, EXTENSIONS, FORMATTER_MAP
 from dirmapper_core.styles.base_style import BaseStyle
-from dirmapper_core.formatter.formatter import Formatter
+from dirmapper_core.formatter.base_formatter import BaseFormatter
 
 from dirmapper_core.models.directory_structure import DirectoryStructure
 from dirmapper_core.models.directory_item import DirectoryItem
@@ -22,10 +22,10 @@ class DirectoryStructureGenerator:
         ignorer (PathIgnorer): Object to handle path ignoring.
         sorting_strategy (SortingStrategy): The order to sort the directory structure.
         style (BaseStyle): The style to use for the directory structure output.
-        formatter (Formatter): The formatter to use for the directory structure output.
+        formatter (BaseFormatter): The formatter to use for the directory structure output.
         max_depth (int): The maximum depth to traverse in the directory structure.
     """
-    def __init__(self, root_dir: str, ignorer: Optional[PathIgnorer] = None, sorting_strategy: SortingStrategy = NoSortStrategy(), style: Optional[BaseStyle] = None, formatter: Optional[Formatter] = None, max_depth: int = 5):
+    def __init__(self, root_dir: str, ignorer: Optional[PathIgnorer] = None, sorting_strategy: SortingStrategy = NoSortStrategy(), style: Optional[BaseStyle] = None, formatter: Optional[BaseFormatter] = None, max_depth: int = 5):
         self.root_dir = os.path.expanduser(root_dir)
         self.ignorer = ignorer
         self.sorting_strategy = sorting_strategy
