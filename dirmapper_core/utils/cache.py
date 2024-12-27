@@ -148,7 +148,14 @@ class SummaryCache:
         Returns:
             str: Cache key for the project summary
         """
-        return f"project_{directory_structure.content_hash}"
+        # Include summaries in the hash to ensure cache invalidation when any summary changes
+        summaries = "_".join(
+            f"{item.path}:{item.short_summary}" 
+            for item in directory_structure.items 
+            if item.short_summary
+        )
+        summary_hash = hashlib.sha256(summaries.encode()).hexdigest()[:16]
+        return f"project_{directory_structure.content_hash}_{summary_hash}"
 
     def get_cache_name(self, obj: Any, func_name: str = "") -> tuple[str, str]:
         """
@@ -201,6 +208,20 @@ class SummaryCache:
         """
         basic_key = self.get_cache_key(content, context)
         return f"{cache_type}_{basic_key}" if cache_type else basic_key
+
+    def get_paginated_structure_key(self, directory_structure: 'DirectoryStructure', page_index: int, total_pages: int) -> str:
+        """
+        Generate a cache key for paginated directory structures.
+        
+        Args:
+            directory_structure (DirectoryStructure): The directory structure
+            page_index (int): Current page index
+            total_pages (int): Total number of pages
+            
+        Returns:
+            str: Cache key for the paginated structure
+        """
+        return f"page_{page_index}_of_{total_pages}_{directory_structure.content_hash}"
 
 def cached_api_call(func):
     """Decorator to cache API calls with improved logging."""

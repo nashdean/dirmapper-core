@@ -144,6 +144,19 @@ class DirectorySummarizer:
             total_pages = len(paginated_structures)
             
             for idx, paginated_structure in enumerate(paginated_structures, 1):
+                # Generate cache key for this page
+                page_cache_key = self.cache.get_paginated_structure_key(
+                    directory_structure,
+                    idx,
+                    total_pages
+                )
+                
+                cached_summary = self.cache.get(page_cache_key)
+                if cached_summary:
+                    logger.info(f"🔵 Using cached summary for page {idx}/{total_pages}")
+                    summarized_structure = self._merge_summaries(summarized_structure, cached_summary)
+                    continue
+                
                 if self.use_level_pagination:
                     level = len(paginated_structure.items[0].path.split('/')) - 1 if paginated_structure.items else 0
                     # Try to get cached directory summary for this level
@@ -181,9 +194,9 @@ class DirectorySummarizer:
                     self.max_short_summary_characters     
                 )
                 
-                # Cache the directory summary if using level pagination
-                if self.use_level_pagination and partial_summary:
-                    self.cache.set(dir_key, partial_summary)
+                # Cache the page summary
+                if partial_summary:
+                    self.cache.set(page_cache_key, partial_summary)
                 
                 summarized_structure = self._merge_summaries(summarized_structure, partial_summary)
                 logger.info(f"Completed processing batch {idx}/{total_pages}")
