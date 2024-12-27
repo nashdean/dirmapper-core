@@ -1,2 +1,4 @@
 openai
 pytest  # For testing
+ratelimit>=2.2.1
+diskcache>=5.6.1

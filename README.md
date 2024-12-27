@@ -54,20 +54,28 @@ structure = generator.generate() # Returns str
 Generating a directory structure results in a formatted string depending on your style and formatter. Here is an example of the `TreeStyle`:
 ```
 /path/to/root/directory
-├── requirements.txt
-├── tests/
-│   ├── test1.py
-│   └── __init__.py
-├── docs/
-├── README.md
-├── setup.py
+├── .devcontainer
+│   ├── devcontainer.json
+│   └── Dockerfile
+├── .DS_Store
+├── .git
 ├── .gitignore
-├── src/
-│   └── snake_game/
-│       ├── __init__.py
-│       ├── utils/
-│       │   └── helper.py
-│       └── main.py
+├── .mapping-ignore
+├── game
+│   ├── __init__.py
+│   ├── colors.py
+│   ├── config.py
+│   ├── display.py
+│   ├── fonts.py
+│   ├── game_loop.py
+│   ├── obstacles.py
+│   ├── score.py
+│   └── snake.py
+├── high_scores.yaml
+├── main.py
+├── main.spec
+├── README.md
+└── requirements.txt
 ```
 See the [styles](dirmapper_core/styles) folder for all valid style examples.
 
@@ -143,7 +151,7 @@ template_path = 'path/to/your/template.json'
 # Define the structure template
 structure_template = {
     "meta": {
-        "version": "1.1",
+        "version": "2.0",
         "source": "dirmapper",
         "author": "root",
         "root_path": template_path,
@@ -261,6 +269,8 @@ print(TreeStyle.write_structure_with_short_summaries(structure))
 
 In the above example, you see that the __*result*__ from the `DirectorySummarizer` is a dict for easy JSON convertability. If you want to view the directory in a *tree* style, you can use the `write_structure_with_short_summaries` method which takes a DirectoryStructure object.
 
+For more details on the `DirectorySummarizer` class, see the [summarizer.py](dirmapper_core/ai/summarizer.py) file. You can also read the [AI Summarizer](dirmapper_core/ai/README.md) documentation for more information.
+
 ### Summarizing Files
 You can summarize individual files using the `FileSummarizer` class. Here is an example.
 ```python
@@ -331,7 +341,7 @@ structure = DirectoryStructure()
 
 # Add items to the structure
 structure.add_item(DirectoryItem('/path/to/game', 0, 'game', {
-    'type': 'folder',
+    'type': 'directory',
     'content': None,
     'summary': None,
     'short_summary': None,
@@ -355,7 +365,7 @@ structure.add_item(DirectoryItem('/path/to/game/snake.py', 1, 'snake.py', {
 }))
 
     # Convert to nested dictionary
-    nested_dict = structure.to_nested_dict()
+    nested_dict = structure.to_nested_dict(use_json_style=False)
 
     # Print the result in a readable format
     print(json.dumps(nested_dict, indent=2))
@@ -367,7 +377,7 @@ The above code will generate the following output to the console:
     "to": {
       "game": {
         "__keys__": {
-          "type": "folder",
+          "type": "directory",
           "content": null,
           "summary": null,
           "short_summary": null,
@@ -396,9 +406,10 @@ The above code will generate the following output to the console:
   }
 }
 ```
+If you chose to set the parameter `use_json_style` in the method `to_nested_dict` to True, the output would be a JSON-style dict from the [JSONStyle Class](./dirmapper_core/styles/json_style.py).
 
 ### Working with DirectoryItem Class
-The most basic element of a directory structure is an item represented by the `DirectoryItem` class. This class is an abstracted object representing a `file` or `folder`. Each object holds valuable metadata about the underlying item, including summaries of the contents which can be generated with AI.
+The most basic element of a directory structure is an item represented by the `DirectoryItem` class. This class is an abstracted object representing a `file` or `directory`. Each object holds valuable metadata about the underlying item, including summaries of the contents which can be generated with AI.
 ```python
     DirectoryItem(
         path='/path/to/project/README.md',
@@ -406,9 +417,11 @@ The most basic element of a directory structure is an item represented by the `D
         name='README.md',
         metadata={
             'type': 'file',
-            'size': '256B',
             'content': '# Project Documentation',
-            'creation_date': '2024-01-01'
+            'content_hash': 'a1b2c3d4e5f6g7h8i9j0',
+            'summary': None,
+            'short_summary': None,
+            'tags': []
         }
     )
 ```

@@ -1,7 +1,75 @@
 # Changelog
 
-## [0.2.3] - 2024-12-22
+## [0.2.4] - 2024-12-27 : Pre-Release
 **No Breaking Changes. Safe to Bump**
+**Full Changelog**: [v0.2.3...v0.2.4](https://github.com/nashdean/dirmapper-core/compare/v0.2.3...v0.2.4)
+
+### Performance Improvements
+- Added disk-based caching for API responses to reduce redundant calls
+- Implemented concurrent processing for directory level summarization
+- Optimized large file processing with parallel chunk summarization
+- Added TTL-based cache expiration to ensure freshness of summaries
+- Improved batch processing with dynamic chunk sizes
+
+### Cache Module
+- Added new `cache.py` module in utils for centralized caching functionality
+- Moved SummaryCache class and cached_api_call decorator from summarizer.py
+- Added improved error handling and logging for cache operations
+- Implemented clean separation of concerns for caching logic
+- Added cache performance monitoring and statistics
+- Improved logging with clear visual indicators for cache hits/misses
+- Added periodic cache statistics reporting
+- Added emoji indicators for better log readability
+
+### Cache Improvements
+- Extended cache TTL to 30 days for better persistence
+- Added content normalization to increase cache hits
+- Implemented consistent chunk caching for large files
+- Added intelligent cache key generation
+- Improved handling of path variations in cache keys
+- Added chunk-level caching for better granularity
+- Added directory-level caching for better performance
+- Implemented parent context caching for improved summaries
+- Added smart invalidation based on directory content hashes
+- Enhanced cache keys with level-based directory context
+- Improved caching granularity for directory structures
+
+### DirectoryStructure Class
+- Added content_hash property for directory structure caching
+- Added level-based hash calculation for granular caching
+- Improved hash consistency with sorted items
+- Added hash invalidation on structure changes
+- Added project level summarization for directory structures by combining file summaries
+
+### ContentGenerator Class
+- Introduced `ContentGenerator` class for generating file content using OpenAI API.
+- Added methods for building prompts and generating content based on directory structure.
+- Improved content generation with context-aware prompts.
+
+### AI Module Documentation
+- Added new `README.md` in dirmapper_core/ai folder
+- Documented usage of `DirectorySummarizer` and `FileSummarizer` classes
+- Explained caching mechanism and how it is incorporated
+- Detailed parallelization techniques used in summarization
+- Provided examples for using the summarizers and clearing the cache
+
+### Formatter Refactoring
+- Created new `BaseFormatter` class in separate file
+- Moved formatter implementations to depend on style objects passed through instructions
+- Removed direct style imports from formatter.py to fix circular dependencies
+- Improved separation of concerns between formatters and styles
+
+### Dependency Resolution
+- Added new ContentService class to handle content generation
+- Moved content generation logic out of JSONStyle to break circular dependencies
+- Improved separation of concerns between styles and AI content generation
+
+### Miscellaneous
+- Updated README with fixes.
+
+## [0.2.3] - 2024-12-22 : Pre-release
+**No Breaking Changes. Safe to Bump**
+**Full Changelog**: [v0.2.2...v0.2.3](https://github.com/nashdean/dirmapper-core/compare/v0.2.2...v0.2.3)
 ### DirectorySummarizer Class
 - Updated to pass the max word length and max short summary length variables to the FileSummarizer.
 - Updated to only use the existing short summaries to generate the project contextual short summaries for each file.
@@ -43,7 +111,7 @@
 ### Miscellaneous
 - Updated README with fixes.
 
-## [0.2.2] - 2024-12-20
+## [0.2.2] - 2024-12-20 : Pre-release
 **No Breaking Changes. Safe to Bump**
 ### DirectoryItem Class
 - Add `content_hash` to detect changes to file content
@@ -53,6 +121,7 @@
 - Added `get_directories()` method to return a list of DirectoryItems that are all of metadata type `directory`
 - Improved `get_files()` method to handle lists of strings for exclusions or inclusions by converting them into `IgnorePattern` objects
 - Added error handling and logging for `get_files()` method
+- Added `use_json_style` parameter to `to_nested_dict()` method allowing use of richer JSONStyle format while maintaining backward compatibility
 
 ### PathIgnorer Class
 - Refactored to manage ignoring patterns without focusing on root directories
@@ -64,7 +133,6 @@
 ### Summarization
 - Added more detailed `INFO` logs including directory size and files being summarized (optional argument)
 - Cache summaries by checking if the DirectoryItem's `content_hash` has changed
-
 
 ## [0.2.1] - 2024-12-17
 **No Breaking Changes. Safe to Bump**

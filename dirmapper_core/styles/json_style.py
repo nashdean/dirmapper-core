@@ -6,9 +6,6 @@ from dirmapper_core.models.directory_item import DirectoryItem
 from dirmapper_core.models.directory_structure import DirectoryStructure
 from dirmapper_core.styles.base_style import BaseStyle
 
-from dirmapper_core.ai.content_generator import generate_file_content as ai_generate_file_content
-
-
 # Import Unix-specific modules only on Unix systems
 if platform.system() != "Windows":
     import pwd
@@ -267,20 +264,24 @@ class JSONStyle(BaseStyle):
     @staticmethod
     def generate_file_content(path: str, items: List[DirectoryItem], root_dir: str) -> str:
         """
-        Generate file content using OpenAI API based on directory structure and summaries.
-
+        Generate file content using the ContentService.
+        
         Args:
-            path (str): The absolute path of the file.
-            items (List[DirectoryItem]): The list of DirectoryItems representing the structure.
-            root_dir (str): The root directory path.
-
+            path: Path to the file
+            items: List of directory items for context
+            root_dir: Root directory path
+            
         Returns:
-            str: The generated file content.
+            Generated content or empty string if generation fails
         """
-        # This is a placeholder function. You need to implement the OpenAI API calls
-        # as per your project's requirements.
-        # Example:
-        # return call_openai_api_for_content(path, items, root_dir)
-        return ai_generate_file_content(path, items, root_dir)
+        from dirmapper_core.ai.content_service import ContentService
+        from dirmapper_core.models.directory_structure import DirectoryStructure
+        
+        # Create DirectoryStructure from items
+        structure = DirectoryStructure()
+        for item in items:
+            structure.add_item(item)
+            
+        return ContentService.generate_file_content(path, structure)
 
 

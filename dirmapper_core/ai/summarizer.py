@@ -2,7 +2,6 @@
 import copy
 import os
 from typing import List, Optional, Tuple, Dict
-from dirmapper_core.formatter.formatter import Formatter
 from dirmapper_core.models.directory_item import DirectoryItem
 from dirmapper_core.models.directory_structure import DirectoryStructure
 from dirmapper_core.styles.tree_style import TreeStyle
@@ -11,11 +10,16 @@ from dirmapper_core.writer.template_parser import TemplateParser
 from openai import OpenAI, AuthenticationError
 from dirmapper_core.utils.paginator import DirectoryPaginator
 from dirmapper_core.utils.text_analyzer import TextAnalyzer
+from dirmapper_core.utils.cache import SummaryCache, cached_api_call
 
 import json
 import threading
-import string
-import math
+
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import List, Dict, Any
+import time
+from ratelimit import limits, sleep_and_retry
+
 
 class DirectorySummarizer:
     """
@@ -57,6 +61,11 @@ class DirectorySummarizer:
             entropy_threshold=config.get('entropy_threshold', 4.0)
         )
         self.use_level_pagination = config.get('use_level_pagination', False)
+        self.cache = SummaryCache(
+            cache_dir=config.get("cache_dir", ".summary_cache"),
+            ttl_days=config.get("cache_ttl_days", 7)
+        )
+        self.concurrent_dir_summaries = config.get("concurrent_dir_summaries", 3)
 
         if not self.is_local:
             api_token = config.get("api_token")
@@ -64,7 +73,7 @@ class DirectorySummarizer:
                 raise ValueError("API token is not set. Please set the API token in the preferences.")
             self.client = OpenAI(api_key=api_token)
 
-    def summarize(self, directory_structure: DirectoryStructure) -> str:
+    def summarize(self, directory_structure: DirectoryStructure) -> dict:
         """
         Summarizes the directory structure using the OpenAI API or local model.
 
@@ -72,30 +81,7 @@ class DirectorySummarizer:
             directory_structure (DirectoryStructure): The directory structure to summarize.
 
         Returns:
-            str: The directory structure with summaries for each file/folder in the specified format.
-        
-        Example:
-            Parameters:
-                directory_structure = DirectoryStructure() # Initialized DirectoryStructure object
-            
-            Result:
-                {
-                    "dir1/": {
-                        "file1.txt": {
-                            "summary": "This file contains the data for the first task.",
-                            "short_summary": "This file contains the data for the first task."
-                        },
-                        "file2.txt": {
-                            "summary": "This file contains the data for the second task.",
-                            "short_summary": "This file contains the data for the second task."
-                        },
-                        "subdir1/": {
-                            "file3.txt": {
-                                "summary": "This file contains the data for the third task.",
-                                "short_summary": "This file contains the data for the third task."
-                            }
-                        }
-                    }
+            dict: The summarized directory structure with summaries for each file/folder and the project summary.
         """
         if self.is_local:
             logger.warning('Localized summary functionality under construction. Set preferences to use the api by setting `is_local` to False.')
@@ -107,25 +93,28 @@ class DirectorySummarizer:
         }
 
         logger.info(f"Summarizing directory structure for {len(directory_structure.items)} items.  {len(directory_structure.get_files())} files, {len(directory_structure.get_directories())} directories.")
+        summarized_structure = {}
         # Summarize the structure
-        summarized_structure = self._summarize_api(directory_structure, meta_data)
+        summarized_structure['summarized_structure'] = self._summarize_api(directory_structure, meta_data)
 
         # Merge summaries back into the original structure
         if isinstance(summarized_structure, dict):
-            directory_structure.merge_nested_dict(summarized_structure)
+            directory_structure.merge_nested_dict(summarized_structure['summarized_structure'])
+
+        # Generate project summary
+        project_summary = self.summarize_project(directory_structure)
+        
+        summarized_structure["project_summary"] = project_summary
 
         return summarized_structure
 
+    def clear_cache(self):
+        """Clear the cache."""
+        self.cache.clear()
+
     def _summarize_api(self, directory_structure: DirectoryStructure, meta_data: dict) -> dict:
         """
-        Summarizes the directory structure using the OpenAI API.
-
-        Args:
-            directory_structure (DirectoryStructure): The directory structure to summarize.
-            meta_data (dict): Metadata about the directory structure.
-
-        Returns:
-            dict: The summarized directory structure with summaries in __keys__.content.
+        Summarizes the directory structure using the OpenAI API with improved caching.
         """
         root_path = meta_data.get('root_path', '')
         
@@ -155,13 +144,46 @@ class DirectorySummarizer:
             total_pages = len(paginated_structures)
             
             for idx, paginated_structure in enumerate(paginated_structures, 1):
+                # Generate cache key for this page
+                page_cache_key = self.cache.get_paginated_structure_key(
+                    directory_structure,
+                    idx,
+                    total_pages
+                )
+                
+                cached_summary = self.cache.get(page_cache_key)
+                if cached_summary:
+                    logger.info(f"🔵 Using cached summary for page {idx}/{total_pages}")
+                    summarized_structure = self._merge_summaries(summarized_structure, cached_summary)
+                    continue
+                
                 if self.use_level_pagination:
                     level = len(paginated_structure.items[0].path.split('/')) - 1 if paginated_structure.items else 0
-                    logger.info(f"Processing level {level} (page {idx}/{total_pages})")
-                    logger.info(f"Current level contains {len(paginated_structure.items)} items")
-                else:
-                    logger.info(f"Processing page {idx}/{total_pages}")
-                    logger.info(f"Current page contains {len(paginated_structure.items)} items")
+                    # Try to get cached directory summary for this level
+                    items_hash = self.cache._get_contents_hash([item.metadata for item in paginated_structure.items])
+                    dir_key = self.cache.get_directory_key(
+                        meta_data.get('root_path', ''),
+                        items_hash,
+                        level
+                    )
+                    cached_summary = self.cache.get(dir_key)
+                    
+                    if cached_summary:
+                        logger.info(f"🔵 Using cached summary for level {level}")
+                        summarized_structure = self._merge_summaries(summarized_structure, cached_summary)
+                        continue
+                    
+                    # Cache parent context if available
+                    if level > 0:
+                        parent_items = [item for item in directory_structure.items if item.level < level]
+                        parent_key = self.cache.get_parent_context_key(
+                            meta_data.get('root_path', ''),
+                            level - 1
+                        )
+                        self.cache.set(parent_key, {
+                            'items': [item.metadata for item in parent_items],
+                            'level': level - 1
+                        })
                 
                 # Log the first few items in this batch for context
                 sample_items = [item.path for item in paginated_structure.items[:3]]
@@ -171,6 +193,11 @@ class DirectorySummarizer:
                     paginated_structure,
                     self.max_short_summary_characters     
                 )
+                
+                # Cache the page summary
+                if partial_summary:
+                    self.cache.set(page_cache_key, partial_summary)
+                
                 summarized_structure = self._merge_summaries(summarized_structure, partial_summary)
                 logger.info(f"Completed processing batch {idx}/{total_pages}")
             
@@ -185,26 +212,28 @@ class DirectorySummarizer:
 
     def _preprocess_structure(self, structure: DirectoryStructure) -> None:
         """
-        Preprocesses the directory structure to add content summaries in __keys__.content.
-        Modifies the structure in place.
-
-        Args:
-            structure (DirectoryStructure): The directory structure to preprocess
+        Preprocesses the directory structure to add content summaries in parallel.
         """
-        for item in structure.items:
-            # Compute content hash for all files
-            content_hash = item.content_hash
+        # Get all files that need summarization
+        files_to_summarize = [
+            item for item in structure.get_files()
+            if not self._is_empty_or_near_empty(item.content) 
+            and self._should_summarize_file(item.path, item.content)
+        ]
 
-            # Summarize content if it's a file
-            if item.metadata.get('type') == 'file':
-                if self._is_empty_or_near_empty(item.content):
-                    item.summary = "Empty File"
-                    item.short_summary = "Empty File"
-                elif self._should_summarize_file(item.path, item.content):
-                    summary_dict = self.file_summarizer.summarize_content(item, self.max_file_summary_words)
-                    item.summary = summary_dict.get('summary', '')
-                    item.short_summary = summary_dict.get('short_summary', '')
-    
+        if not files_to_summarize:
+            return
+
+        logger.info(f"Summarizing {len(files_to_summarize)} files in parallel...")
+        
+        # Process files in parallel using FileSummarizer
+        summaries = self.file_summarizer.summarize_items_parallel(
+            files_to_summarize,
+            self.max_file_summary_words
+        )
+
+        logger.info(f"Completed summarizing {len(summaries)} files")
+
     def _is_empty_or_near_empty(self, content: Optional[str]) -> bool:
         """
         Check if the content is empty or near-empty.
@@ -265,40 +294,64 @@ class DirectorySummarizer:
             # logger.error("Summarization feature requires additional dependencies. Please run `dirmap install-ai` to set it up.")
             return "Error: Summarization feature requires additional dependencies.  Please run `dirmap install-ai` to set it up."
 
+    @cached_api_call
     def _summarize_directory_structure_api(self, directory_structure: DirectoryStructure, short_summary_length: int) -> dict:
         """
         Summarizes the directory structure using the OpenAI API.
 
         Args:
-            directory_structure (DirectoryStructure): The directory structure to summarize with __keys__.
-            short_summary_length (int): The maximum character length for each summary.
+            directory_structure (DirectoryStructure): The directory structure to summarize.
+            short_summary_length (int): The maximum word length for each summary.
 
         Returns:
-            dict: The summarized directory structure in JSON format with summaries in __keys__.content.
+            dict: The summarized directory structure in JSON format with summaries for each file/folder.
         """
+        # Add parent context to improve summaries
+        parent_context = None
+        if self.use_level_pagination:
+            level = len(directory_structure.items[0].path.split('/')) - 1 if directory_structure.items else 0
+            if level > 0:
+                parent_key = self.cache.get_parent_context_key(
+                    directory_structure.items[0].path,
+                    level - 1
+                )
+                parent_context = self.cache.get(parent_key)
+
+        # Set cache context for the decorator using directory structure's content hash
+        self.cache_context = f"structure_{directory_structure.content_hash}"
+        if parent_context:
+            self.cache_context += f"_level_{parent_context.get('level', '')}"
+
         simple_json_structure = directory_structure.to_nested_dict(['type', 'short_summary'])
         tree_structure = TreeStyle.write_structure(directory_structure)
-        logger.info("Simple JSON Structure: " + json.dumps(simple_json_structure, indent=2))
-
+        
         messages = [
             {
                 "role": "system",
                 "content": "You are a directory structure analyzer. Respond only with valid JSON."
-            },
-            {
-                "role": "user", 
-                "content": (
-                    "Analyze the following directory structure:\n\n"
-                    f"{tree_structure}\n\n"
-                    "Use the following JSON object that matches the input structure to generate "
-                    "`short_summary` fields overwriting the existing `short_summary` field. Use the existing `short_summary` value "
-                    "for additional context about the existing file if it is not labled 'Empty File'. Generate a short summary for "
-                    "each folder based on the files it contains and also store this in the field `short_summary`. "
-                    f"Do not modify the structure in any other way. Write each short summary in {short_summary_length} characters "
-                    f"or less. Here is the formatted JSON:\n\n{json.dumps(simple_json_structure, indent=2)}"
-                )
             }
         ]
+
+        # Add parent context if available
+        if parent_context:
+            messages.append({
+                "role": "system",
+                "content": f"Parent directory context: {json.dumps(parent_context)}"
+            })
+
+        messages.append({
+            "role": "user", 
+            "content": (
+                "Analyze the following directory structure:\n\n"
+                f"{tree_structure}\n\n"
+                "Use the following JSON object that matches the input structure to generate "
+                "`short_summary` fields overwriting the existing `short_summary` field. Use the existing `short_summary` value "
+                "for additional context about the existing file if it is not labled 'Empty File'. Generate a short summary for "
+                "each folder based on the files it contains and also store this in the field `short_summary`. "
+                f"Do not modify the structure in any other way. Write each short summary in {short_summary_length} characters "
+                f"or less. Here is the formatted JSON:\n\n{json.dumps(simple_json_structure, indent=2)}"
+            )
+        })
         logger.info("Sending request to API for summarization...")
         logger.info(f"Structure contains {len(directory_structure.items)} items "
                    f"({len(directory_structure.get_files())} files, "
@@ -362,6 +415,83 @@ class DirectorySummarizer:
             else:
                 original[key] = value
         return original
+    
+    def summarize_project(self, directory_structure: DirectoryStructure) -> str:
+        """
+        Generates a summary of the entire project based on the directory structure.
+
+        Args:
+            directory_structure (DirectoryStructure): The directory structure of the project.
+
+        Returns:
+            str: The summary of the entire project.
+        """
+        # Set cache context using the cache manager's project key generation
+        self.cache_context = self.cache.get_project_summary_key(directory_structure)
+        
+        # Aggregate summaries
+        aggregated_summaries = self._aggregate_summaries(directory_structure)
+
+        # Generate project summary using OpenAI API
+        project_summary = self._generate_project_summary(aggregated_summaries)
+
+        # Update directory structure with project summary
+        directory_structure.description = project_summary
+
+        return project_summary
+
+    @cached_api_call
+    def _generate_project_summary(self, aggregated_summaries: str) -> str:
+        """
+        Generates a project summary using the OpenAI API based on aggregated summaries.
+
+        Args:
+            aggregated_summaries (str): The aggregated summaries as a single string.
+
+        Returns:
+            str: The project summary.
+        """
+        prompt = (
+            "Generate a concise summary of the following project based on the provided summaries:\n\n"
+            f"{aggregated_summaries}\n\n"
+            "Summarize the project in a few sentences."
+        )
+
+        try:
+            response = self.client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": "You are an assistant that generates project summaries."},
+                    {"role": "user", "content": prompt}
+                ],
+                max_tokens=150,
+                temperature=0.7
+            )
+
+            project_summary = response.choices[0].message.content.strip()
+            return project_summary
+        except Exception as e:
+            logger.error(f"Error generating project summary: {str(e)}")
+            return "Error generating project summary."
+
+    def _aggregate_summaries(self, directory_structure: DirectoryStructure) -> str:
+        """
+        Aggregates individual summaries into a single string.
+
+        Args:
+            directory_structure (DirectoryStructure): The summarized directory structure.
+
+        Returns:
+            str: The aggregated summaries as a single string.
+        """
+        summaries = []
+        
+        # Get all items that have summaries
+        for item in directory_structure.items:
+            if item.short_summary:
+                summaries.append(f"{item.path}: {item.short_summary}")
+        
+        return "\n".join(summaries)
 
 class FileSummarizer:
     """
@@ -383,6 +513,126 @@ class FileSummarizer:
             if not api_token:
                 raise ValueError("API token is not set. Please set the API token in the preferences.")
             self.client = OpenAI(api_key=api_token)
+        self.max_workers = config.get("max_workers", 5)
+        self.requests_per_minute = config.get("requests_per_minute", 50)
+        self.batch_size = config.get("batch_size", 10)
+        self.cache = SummaryCache(
+            cache_dir=config.get("cache_dir", ".summary_cache"),
+            ttl_days=config.get("cache_ttl_days", 7)
+        )
+        self.chunk_size = config.get("chunk_size", 4000)
+        self.concurrent_chunks = config.get("concurrent_chunks", 3)
+
+    @sleep_and_retry
+    @limits(calls=50, period=60)  # Rate limit: 50 calls per minute
+    def _rate_limited_api_call(self, messages: List[Dict], model: str, max_tokens: int, temperature: float) -> Any:
+        """Make a rate-limited API call to OpenAI."""
+        return self.client.chat.completions.create(
+            model=model,
+            messages=messages,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            response_format={"type": "json_object"}
+        )
+    
+    def clear_cache(self):
+        """Clear the cache."""
+        self.cache.clear()
+
+    def summarize_items_parallel(self, items: List[DirectoryItem], max_words: int = 100) -> Dict[str, Dict]:
+        """
+        Summarize multiple DirectoryItems in parallel.
+
+        Args:
+            items (List[DirectoryItem]): List of DirectoryItems to summarize
+            max_words (int): Maximum words per summary
+
+        Returns:
+            Dict[str, Dict]: Dictionary mapping file paths to their summaries
+        """
+        if self.is_local:
+            logger.warning('Local summarization is not implemented yet.')
+            return {item.path: {"summary": "", "short_summary": ""} for item in items}
+
+        # Filter out items that don't need summarization
+        items_to_summarize = [
+            item for item in items 
+            if item.metadata.get('type') == 'file' 
+            and (not item.summary or item.content_hash != item.metadata.get('content_hash'))
+        ]
+
+        if not items_to_summarize:
+            return {}
+
+        # Process items in batches to avoid overwhelming the API
+        results = {}
+        for i in range(0, len(items_to_summarize), self.batch_size):
+            batch = items_to_summarize[i:i + self.batch_size]
+            batch_results = self._process_batch(batch, max_words)
+            results.update(batch_results)
+            
+            # Small delay between batches to help with rate limiting
+            if i + self.batch_size < len(items_to_summarize):
+                time.sleep(1)
+
+        return results
+
+    def _process_batch(self, items: List[DirectoryItem], max_words: int) -> Dict[str, Dict]:
+        """
+        Process a batch of items using a thread pool.
+
+        Args:
+            items (List[DirectoryItem]): Batch of items to process
+            max_words (int): Maximum words per summary
+
+        Returns:
+            Dict[str, Dict]: Dictionary mapping file paths to their summaries
+        """
+        results = {}
+        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+            future_to_item = {
+                executor.submit(self._summarize_item, item, max_words): item
+                for item in items
+            }
+
+            for future in as_completed(future_to_item):
+                item = future_to_item[future]
+                try:
+                    summary_result = future.result()
+                    if summary_result:
+                        results[item.path] = summary_result
+                        # Update the item with new summaries
+                        item.summary = summary_result.get('summary', '')
+                        item.short_summary = summary_result.get('short_summary', '')
+                        item.metadata['content_hash'] = item.content_hash
+                except Exception as e:
+                    logger.error(f"Error processing {item.path}: {str(e)}")
+                    results[item.path] = {"summary": "", "short_summary": ""}
+
+        return results
+
+    def _summarize_item(self, item: DirectoryItem, max_words: int) -> Dict[str, str]:
+        """
+        Summarize a single DirectoryItem.
+
+        Args:
+            item (DirectoryItem): Item to summarize
+            max_words (int): Maximum words in summary
+
+        Returns:
+            Dict[str, str]: Dictionary containing summary and short_summary
+        """
+        try:
+            if not item.content:
+                return {"summary": "", "short_summary": ""}
+
+            if len(item.content) > 5000:
+                return self._summarize_large_content(item.name, item.content, max_words)
+            else:
+                return self._summarize_purpose_api(item.name, item.content, max_words)
+        except Exception as e:
+            logger.error(f"Error summarizing {item.path}: {str(e)}")
+            return {"summary": "", "short_summary": ""}
 
     def summarize_content(self, item: DirectoryItem, max_words: int = 100, force_refresh: bool = False) -> dict:
         """
@@ -477,29 +727,84 @@ class FileSummarizer:
         Returns:
             dict: The combined summary of all chunks and a short summary.
         """
-        chunk_size = 4000  # Adjust based on API limits
-        chunks = [content[i:i + chunk_size] for i in range(0, len(content), chunk_size)]
+        chunks = [content[i:i + self.chunk_size] for i in range(0, len(content), self.chunk_size)]
+        total_chunks = len(chunks)
         summaries = []
 
-        for idx, chunk in enumerate(chunks):
-            logger.info(f"Summarizing chunk {idx + 1}/{len(chunks)}")
-            summary_dict = self._summarize_purpose_api(file_name, chunk, max_words)
-            summaries.append(summary_dict.get('summary', ''))
+        with ThreadPoolExecutor(max_workers=self.concurrent_chunks) as executor:
+            futures = []
+            for idx, chunk in enumerate(chunks):
+                chunk_key = self.cache.get_chunk_key(file_name, idx, total_chunks)
+                cached_result = self.cache.get(chunk_key)
+                
+                if cached_result:
+                    logger.info(f"🔵 Using cached chunk {idx + 1}/{total_chunks} for {file_name}")
+                    summaries.append(cached_result.get('summary', ''))
+                    continue
 
-        # Combine summaries
+                future = executor.submit(
+                    self._summarize_chunk,
+                    chunk_key,
+                    file_name,
+                    chunk,
+                    max_words,
+                    idx,
+                    total_chunks
+                )
+                futures.append(future)
+
+            for future in as_completed(futures):
+                try:
+                    result = future.result()
+                    if result and result.get('summary'):
+                        summaries.append(result['summary'])
+                except Exception as e:
+                    logger.error(f"Error processing chunk: {str(e)}")
+
+        # Combine and summarize
+        if not summaries:
+            return {"summary": "", "short_summary": ""}
+
         combined_summary = "\n".join(summaries)
+        final_key = self.cache.get_chunk_key(file_name, -1, total_chunks)  # Special key for final summary
         
-        # Summarize the combined summary based on max_words guidelines
-        combined_summary = self._summarize_purpose_api(file_name, combined_summary, max_words).get('summary', '')
+        cached_final = self.cache.get(final_key)
+        if cached_final:
+            logger.info(f"🔵 Using cached final summary for {file_name}")
+            return cached_final
 
-        print("Combined Summary: ", combined_summary)
-        logger.info(f"Final Combined Summary Length: {len(combined_summary)}")
-        # Generate a short summary
-        short_summary = self._summarize_purpose_api(file_name, combined_summary, self.max_short_summary_characters, is_short=True).get('short_summary', '')
-        print("Short Summary: ", short_summary)
+        # Generate final summaries
+        final_result = self._summarize_purpose_api(file_name, combined_summary, max_words)
+        if final_result:
+            self.cache.set(final_key, final_result)
 
-        return {'summary': combined_summary, 'short_summary': short_summary}
-    
+        return final_result
+
+    def _summarize_chunk(self, chunk_key: str, file_name: str, chunk: str, 
+                        max_words: int, chunk_idx: int, total_chunks: int) -> Dict[str, str]:
+        """Summarize a single chunk with caching."""
+        try:
+            cached_result = self.cache.get(chunk_key)
+            if cached_result:
+                logger.info(f"🔵 Using cached chunk {chunk_idx + 1}/{total_chunks} for {file_name}")
+                return cached_result
+
+            logger.info(f"🔄 Processing chunk {chunk_idx + 1}/{total_chunks} for {file_name}")
+            result = self._summarize_purpose_api(
+                f"{file_name}_chunk_{chunk_idx}",
+                chunk,
+                max_words
+            )
+            
+            if result and result.get('summary'):
+                self.cache.set(chunk_key, result)
+            
+            return result
+        except Exception as e:
+            logger.error(f"Error processing chunk {chunk_idx + 1}/{total_chunks}: {str(e)}")
+            return {"summary": "", "short_summary": ""}
+
+    @cached_api_call
     def _summarize_purpose_api(self, file_name: str, content: str, max_length: int, is_short: bool=False) -> dict:
         """
         Summarizes the content using the OpenAI API.
@@ -532,7 +837,7 @@ class FileSummarizer:
             )}
         ]
 
-        logger.info(f"Sending request to OpenAI API for summarization. Summarizing {file_name}...")
+        logger.info(f"🔄 Processing summary request for {file_name}...")
 
         stop_logging.clear()
         logging_thread = threading.Thread(target=log_periodically, args=("Waiting for response from OpenAI API...", 5))
@@ -546,6 +851,7 @@ class FileSummarizer:
                 temperature=temperature,
                 response_format={"type": "json_object"}
             )
+            logger.info(f"✅ Received API response for {file_name}")
             if not response or not response.choices:
                 logger.error("Empty or invalid response from API")
                 return {"summary": "", "short_summary": ""}
@@ -564,7 +870,7 @@ class FileSummarizer:
             logger.error(f"Authentication error: {e}")
             return {"summary": "", "short_summary": ""}
         except Exception as e:
-            logger.error(f"Error during API call: {e}")
+            logger.error(f"❌ API Error for {file_name}: {str(e)}")
             return {"summary": "", "short_summary": ""}
         finally:
             stop_logging.set()
