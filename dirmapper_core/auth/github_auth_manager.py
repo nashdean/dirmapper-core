@@ -99,6 +99,19 @@ class GitHubAuthManager(AuthBase):
             logger.error(f"Error validating OAuth token: {str(e)}")
             return False
 
+class GitHubUserManager:
+    """
+    GitHubUserManager handles fetching user details from the GitHub API.
+    """
+    def __init__(self, auth_manager: GitHubAuthManager):
+        """
+        Initialize the GitHubUserManager with an instance of GitHubAuthManager.
+
+        Args:
+            auth_manager (GitHubAuthManager): An instance of GitHubAuthManager.
+        """
+        self.auth_manager = auth_manager
+
     def get_user_details(self) -> Optional[dict]:
         """
         Get the authenticated user's details from the GitHub API.
@@ -107,8 +120,8 @@ class GitHubAuthManager(AuthBase):
             Optional[dict]: The user's details if the token is valid, None otherwise.
         """
         try:
-            response = self.make_request_with_retry('https://api.github.com/user', auth=self)
-            self._check_rate_limit(response)
+            response = self.auth_manager.make_request_with_retry('https://api.github.com/user', auth=self.auth_manager)
+            self.auth_manager._check_rate_limit(response)
             if response.status_code == 200:
                 return response.json()
             else:
@@ -131,8 +144,8 @@ class GitHubAuthManager(AuthBase):
         """
         try:
             url = f'https://api.github.com/repos/{owner}/{repo}'
-            response = self.make_request_with_retry(url, auth=self)
-            self._check_rate_limit(response)
+            response = self.auth_manager.make_request_with_retry(url, auth=self.auth_manager)
+            self.auth_manager._check_rate_limit(response)
             if response.status_code == 200:
                 return response.json()
             else:

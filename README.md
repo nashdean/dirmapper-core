@@ -426,6 +426,32 @@ The most basic element of a directory structure is an item represented by the `D
     )
 ```
 
+### Connecting to GitHub via API
+
+You can use `dirmapper-core` to integrate directly with GitHub provided an API key is provided.  Here is an example of fetching repository contents from GitHub:
+
+```python
+from dirmapper_core.auth.github_auth_manager import GitHubAuthManager
+from dirmapper_core.github.github_repository_manager import GitHubRepositoryManager
+
+# Initialize the GitHubAuthManager with an OAuth token
+auth_manager = GitHubAuthManager(oauth_token="your_oauth_token")
+
+# Initialize the GitHubRepositoryManager with the auth manager
+repo_manager = GitHubRepositoryManager(auth_manager=auth_manager)
+
+# Get the contents of the root directory of a repository
+contents = repo_manager.get_repository_contents(owner="owner_name", repo="repo_name")
+if contents:
+    for item in contents:
+        print(item)
+
+# Get the content of a specific file in the repository
+file_content = repo_manager.get_file_content(owner="owner_name", repo="repo_name", path="path/to/file")
+if file_content:
+    print(file_content)
+```
+
 ## Contributing
 Contributions are welcome! Please open an issue or submit a pull request on GitHub.
 

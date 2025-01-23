@@ -1,11 +1,21 @@
 # Changelog
 
-# Unreleased
+## [0.3.0] - 2025-01-22 : Pre-Release
 
-## dirmapper_core/auth/github_auth_manager.py
+### GitHub Authentication
 
 - Added `GitHubAuthManager` class to handle authentication with the GitHub API using an OAuth token.
-- The class provides methods to validate the token, get user details, and get repository details.
+- The class provides methods to validate the token
+- The class checks for current API limits and retries with exponential backoff on server-side errors
+
+### GitHub User Details
+
+- Added `GitHubUserManager` class to handle fetching user details from the GitHub API.
+    - The class uses `GitHubAuthManager` for authentication and provides a method to get user details.
+
+### GitHub Repository Details
+- Added `GitHubRepositoryManager` class to handle fetching files and directories from a GitHub repository.
+    - The class uses `GitHubAuthManager` for authentication and provides methods to get repository contents and file content.
 
 ## [0.2.4] - 2024-12-27 : Pre-Release
 **No Breaking Changes. Safe to Bump**
