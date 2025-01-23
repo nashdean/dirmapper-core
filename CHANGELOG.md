@@ -16,6 +16,7 @@
 ### GitHub Repository Details
 - Added `GitHubRepositoryManager` class to handle fetching files and directories from a GitHub repository.
     - The class uses `GitHubAuthManager` for authentication and provides methods to get repository contents and file content.
+    - Added `fetch_directory_structure` method to `GitHubRepositoryManager` to fetch and convert GitHub repository contents into `DirectoryStructure` and `DirectoryItem` objects.
 
 ## [0.2.4] - 2024-12-27 : Pre-Release
 **No Breaking Changes. Safe to Bump**

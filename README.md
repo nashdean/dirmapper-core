@@ -452,6 +452,25 @@ if file_content:
     print(file_content)
 ```
 
+To integrate with the rest of the `dirmapper-core` logic, you can use the `GitHubRepositoryManager`'s `fetch_directory_structure` method:
+
+```python
+from dirmapper_core.auth.github_auth_manager import GitHubAuthManager
+from dirmapper_core.github.github_repository_manager import GitHubRepositoryManager
+
+# Initialize the GitHubAuthManager with an OAuth token
+auth_manager = GitHubAuthManager(oauth_token="your_oauth_token")
+
+# Initialize the GitHubRepositoryManager with the auth manager
+repo_manager = GitHubRepositoryManager(auth_manager=auth_manager)
+
+# Fetch the directory structure of a repository
+directory_structure = repo_manager.fetch_directory_structure(owner="owner_name", repo="repo_name")
+
+# Print the directory structure
+directory_structure.print()
+```
+
 ## Contributing
 Contributions are welcome! Please open an issue or submit a pull request on GitHub.
 
