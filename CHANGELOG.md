@@ -1,5 +1,12 @@
 # Changelog
 
+# Unreleased
+
+## dirmapper_core/auth/github_auth_manager.py
+
+- Added `GitHubAuthManager` class to handle authentication with the GitHub API using an OAuth token.
+- The class provides methods to validate the token, get user details, and get repository details.
+
 ## [0.2.4] - 2024-12-27 : Pre-Release
 **No Breaking Changes. Safe to Bump**
 **Full Changelog**: [v0.2.3...v0.2.4](https://github.com/nashdean/dirmapper-core/compare/v0.2.3...v0.2.4)

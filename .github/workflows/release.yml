@@ -49,13 +49,30 @@ jobs:
             echo EOF
           } >> $GITHUB_ENV
 
+      - name: Check if pre-release
+        if: env.RELEASE_EXISTS == 'false'
+        run: |
+          IS_PRERELEASE=$(awk -v version="$VERSION" '
+            $0 ~ "^## \\[" version "\\].*Pre-release" {
+              print "true"
+              exit
+            }
+          ' CHANGELOG.md || echo "false")
+          echo "IS_PRERELEASE=$IS_PRERELEASE" >> $GITHUB_ENV
+
       - name: Create Release
         if: env.RELEASE_EXISTS == 'false'
         run: |
+          if [ "${{ env.IS_PRERELEASE }}" = "true" ]; then
+            PRERELEASE_FLAG="--prerelease"
+          else
+            PRERELEASE_FLAG=""
+          fi
           gh release create "v${{ env.VERSION }}" \
-            --title "Release ${{ env.VERSION }}" \
+            --title "$([ "${{ env.IS_PRERELEASE }}" = "true" ] && echo "Pre-release" || echo "Release") ${{ env.VERSION }}" \
             --notes "${{ env.NOTES }}" \
-            --verify-tag
+            --verify-tag \
+            $PRERELEASE_FLAG
 
       - name: Skip Release
         if: env.RELEASE_EXISTS == 'true'
