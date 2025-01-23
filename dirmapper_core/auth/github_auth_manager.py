@@ -1,3 +1,5 @@
+import datetime
+import time
 import requests
 from requests.auth import AuthBase
 from typing import Optional
@@ -29,6 +31,54 @@ class GitHubAuthManager(AuthBase):
         r.headers['Authorization'] = f'token {self.oauth_token}'
         return r
 
+    def _check_rate_limit(self, response: requests.Response) -> None:
+        """
+        Check if the rate limit has been reached and log the error if needed.
+
+        Args:
+            response (requests.Response): The response from the GitHub API.
+
+        Raises:
+            Exception: If the rate limit has been exceeded.
+        """
+        if response.status_code == 403 and 'X-RateLimit-Remaining' in response.headers:
+            reset_time = response.headers.get('X-RateLimit-Reset')
+            if reset_time:
+                reset_time = datetime.datetime.fromtimestamp(int(reset_time)).strftime('%Y-%m-%d %H:%M:%S')
+            logger.error(f"Rate limit exceeded. Reset time: {reset_time}")
+            raise Exception("GitHub API rate limit exceeded.")
+
+    def make_request_with_retry(self, url: str, max_retries: int = 3, backoff_factor: int = 2, **kwargs) -> requests.Response:
+        """
+        Make a request with retry and exponential backoff in case of transient server errors.
+
+        Args:
+            url (str): The URL to make the request to.
+            max_retries (int): The maximum number of retries.
+            backoff_factor (int): The backoff factor for exponential backoff.
+            **kwargs: Additional arguments to pass to the requests.get method.
+
+        Returns:
+            requests.Response: The response from the server.
+
+        Raises:
+            Exception: If the maximum number of retries is exceeded.
+        """
+        for attempt in range(max_retries):
+            try:
+                response = requests.get(url, **kwargs)
+                if response.status_code == 200:
+                    return response
+                elif response.status_code in {502, 503, 504}:  # Transient server errors
+                    logger.warning(f"Retrying due to transient error: {response.status_code}")
+                    time.sleep(backoff_factor ** attempt)
+                else:
+                    return response
+            except requests.RequestException as e:
+                logger.error(f"Request failed: {str(e)}")
+                time.sleep(backoff_factor ** attempt)
+        raise Exception("Max retries exceeded.")
+
     def validate_token(self) -> bool:
         """
         Validate the OAuth token by making a request to the GitHub API.
@@ -37,7 +87,8 @@ class GitHubAuthManager(AuthBase):
             bool: True if the token is valid, False otherwise.
         """
         try:
-            response = requests.get('https://api.github.com/user', auth=self)
+            response = self.make_request_with_retry('https://api.github.com/user', auth=self)
+            self._check_rate_limit(response)
             if response.status_code == 200:
                 logger.info("OAuth token is valid.")
                 return True
@@ -56,7 +107,8 @@ class GitHubAuthManager(AuthBase):
             Optional[dict]: The user's details if the token is valid, None otherwise.
         """
         try:
-            response = requests.get('https://api.github.com/user', auth=self)
+            response = self.make_request_with_retry('https://api.github.com/user', auth=self)
+            self._check_rate_limit(response)
             if response.status_code == 200:
                 return response.json()
             else:
@@ -79,7 +131,8 @@ class GitHubAuthManager(AuthBase):
         """
         try:
             url = f'https://api.github.com/repos/{owner}/{repo}'
-            response = requests.get(url, auth=self)
+            response = self.make_request_with_retry(url, auth=self)
+            self._check_rate_limit(response)
             if response.status_code == 200:
                 return response.json()
             else:
